@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Motion - GLSL Shader Experiment</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        .controls h3 {
+            margin: 0 0 10px 0;
+            color: #00ffcc;
+        }
+        
+        .control-item {
+            margin: 5px 0;
+        }
+        
+        .control-item label {
+            display: inline-block;
+            width: 120px;
+        }
+        
+        .control-item input {
+            width: 100px;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            z-index: 100;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 300;
+            text-decoration: none;
+            color: rgba(255,255,255,0.7);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            transition: all 0.2s;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-btn">← Back to List</a>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <h3>Fluid Motion Controls</h3>
+        <div class="control-item">
+            <label for="waveSpeed">Wave Speed:</label>
+            <input type="range" id="waveSpeed" min="0.1" max="3.0" step="0.1" value="1.0" 
+                   title="Adjust the speed of wave motion" aria-label="Wave Speed">
+        </div>
+        <div class="control-item">
+            <label for="waveHeight">Wave Height:</label>
+            <input type="range" id="waveHeight" min="0.1" max="2.0" step="0.1" value="1.0"
+                   title="Adjust the amplitude of waves" aria-label="Wave Height">
+        </div>
+        <div class="control-item">
+            <label for="frequency">Frequency:</label>
+            <input type="range" id="frequency" min="0.5" max="5.0" step="0.1" value="2.0"
+                   title="Adjust wave frequency" aria-label="Frequency">
+        </div>
+        <div class="control-item">
+            <label for="rotationSpeed">Rotation Speed:</label>
+            <input type="range" id="rotationSpeed" min="0.0" max="2.0" step="0.1" value="0.5"
+                   title="Adjust camera rotation speed" aria-label="Rotation Speed">
+        </div>
+    </div>
+    
+    <div class="info">
+        <div>Instances: <span id="instanceCount">800</span></div>
+        <div>FPS: <span id="fps">60</span></div>
+        <div style="margin-top: 8px; opacity: 0.6;">
+            🖱️ Drag: Rotate | Scroll: Zoom
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ 
+            canvas: document.getElementById('canvas'),
+            antialias: true,
+            alpha: true 
+        });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        
+        camera.position.set(0, 15, 30);
+        
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        orbitControls.enableDamping = true;
+        orbitControls.dampingFactor = 0.05;
+        orbitControls.autoRotate = true;
+        orbitControls.autoRotateSpeed = 1.0;
+        orbitControls.minDistance = 10;
+        orbitControls.maxDistance = 100;
+        orbitControls.maxPolarAngle = Math.PI * 0.85;
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+        
+        // Vertex Shader
+        const vertexShader = `
+            attribute vec3 instancePosition;
+            attribute float instanceScale;
+            attribute vec3 instanceColor;
+            
+            uniform float time;
+            uniform float waveSpeed;
+            uniform float waveHeight;
+            uniform float frequency;
+            
+            varying vec3 vColor;
+            varying vec3 vPosition;
+            varying float vElevation;
+            
+            // Noise function for organic movement
+            float noise(vec2 st) {
+                return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+            }
+            
+            float smoothNoise(vec2 st) {
+                vec2 i = floor(st);
+                vec2 f = fract(st);
+                
+                float a = noise(i);
+                float b = noise(i + vec2(1.0, 0.0));
+                float c = noise(i + vec2(0.0, 1.0));
+                float d = noise(i + vec2(1.0, 1.0));
+                
+                vec2 u = f * f * (3.0 - 2.0 * f);
+                
+                return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+            }
+            
+            void main() {
+                vColor = instanceColor;
+                
+                // Calculate wave displacement
+                vec3 pos = position;
+                
+                // Multiple wave layers for complexity
+                float wave1 = sin(instancePosition.x * frequency + time * waveSpeed) * waveHeight;
+                float wave2 = cos(instancePosition.z * frequency * 0.7 + time * waveSpeed * 1.3) * waveHeight * 0.5;
+                float wave3 = sin((instancePosition.x + instancePosition.z) * frequency * 0.3 + time * waveSpeed * 0.8) * waveHeight * 0.3;
+                
+                // Circular wave pattern
+                float dist = length(instancePosition.xz);
+                float circularWave = sin(dist * frequency - time * waveSpeed * 2.0) * waveHeight * 0.4;
+                
+                // Noise-based organic movement
+                vec2 noiseCoord = instancePosition.xz * 0.1 + time * 0.1;
+                float organicMovement = smoothNoise(noiseCoord) * waveHeight * 0.2;
+                
+                // Combine all wave influences
+                float totalWave = wave1 + wave2 + wave3 + circularWave + organicMovement;
+                
+                // Apply wave to Y position
+                pos.y += totalWave;
+                
+                // Add some rotation based on position and time
+                float rotationAngle = time * 0.5 + instancePosition.x * 0.1;
+                mat2 rotationMatrix = mat2(
+                    cos(rotationAngle), -sin(rotationAngle),
+                    sin(rotationAngle), cos(rotationAngle)
+                );
+                pos.xz = rotationMatrix * pos.xz;
+                
+                // Apply instance transformation
+                vec4 worldPosition = modelMatrix * vec4(pos * instanceScale + instancePosition, 1.0);
+                
+                vPosition = worldPosition.xyz;
+                vElevation = totalWave;
+                
+                gl_Position = projectionMatrix * viewMatrix * worldPosition;
+            }
+        `;
+        
+        // Fragment Shader
+        const fragmentShader = `
+            uniform float time;
+            uniform vec3 lightPosition;
+            
+            varying vec3 vColor;
+            varying vec3 vPosition;
+            varying float vElevation;
+            
+            void main() {
+                // Base color with elevation influence
+                vec3 color = vColor;
+                
+                // Add elevation-based color variation
+                float elevationFactor = (vElevation + 2.0) * 0.5;
+                color.r += elevationFactor * 0.3;
+                color.g += elevationFactor * 0.1;
+                color.b -= elevationFactor * 0.2;
+                
+                // Pulsing effect based on time
+                float pulse = sin(time * 2.0 + vElevation * 3.0) * 0.1 + 0.9;
+                color *= pulse;
+                
+                // Simple lighting calculation
+                vec3 lightDirection = normalize(lightPosition - vPosition);
+                float lightIntensity = max(dot(normalize(vPosition), lightDirection), 0.3);
+                color *= lightIntensity;
+                
+                // Add some glow for higher elevations
+                if (vElevation > 0.5) {
+                    float glow = (vElevation - 0.5) * 2.0;
+                    color += vec3(0.1, 0.3, 0.2) * glow;
+                }
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+        
+        // Create capsule geometry
+        const capsuleGeometry = new THREE.CapsuleGeometry(0.3, 1.0, 4, 8);
+        
+        // Instance count
+        const instanceCount = 800;
+        
+        // Create instanced mesh
+        const instancedMesh = new THREE.InstancedMesh(capsuleGeometry, new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: {
+                time: { value: 0 },
+                waveSpeed: { value: 1.0 },
+                waveHeight: { value: 1.0 },
+                frequency: { value: 2.0 },
+                lightPosition: { value: new THREE.Vector3(5, 10, 5) }
+            },
+            transparent: true
+        }), instanceCount);
+        
+        // Create instance attributes
+        const positions = new Float32Array(instanceCount * 3);
+        const scales = new Float32Array(instanceCount);
+        const colors = new Float32Array(instanceCount * 3);
+        
+        // Grid layout for instances
+        const gridSize = Math.ceil(Math.sqrt(instanceCount));
+        const spacing = 2.0;
+        let index = 0;
+        
+        for (let i = 0; i < gridSize; i++) {
+            for (let j = 0; j < gridSize; j++) {
+                if (index >= instanceCount) break;
+                
+                // Position in grid with some randomness
+                positions[index * 3] = (i - gridSize * 0.5) * spacing + (Math.random() - 0.5) * 0.5;
+                positions[index * 3 + 1] = 0;
+                positions[index * 3 + 2] = (j - gridSize * 0.5) * spacing + (Math.random() - 0.5) * 0.5;
+                
+                // Random scale
+                scales[index] = 0.5 + Math.random() * 1.0;
+                
+                // Color based on position
+                const hue = (i / gridSize + j / gridSize) * 0.3;
+                const color = new THREE.Color();
+                color.setHSL(hue, 0.7, 0.5);
+                colors[index * 3] = color.r;
+                colors[index * 3 + 1] = color.g;
+                colors[index * 3 + 2] = color.b;
+                
+                index++;
+            }
+        }
+        
+        // Set instance attributes
+        capsuleGeometry.setAttribute('instancePosition', new THREE.InstancedBufferAttribute(positions, 3));
+        capsuleGeometry.setAttribute('instanceScale', new THREE.InstancedBufferAttribute(scales, 1));
+        capsuleGeometry.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colors, 3));
+        
+        scene.add(instancedMesh);
+        
+        // UI Controls
+        const controls = {
+            waveSpeed: document.getElementById('waveSpeed'),
+            waveHeight: document.getElementById('waveHeight'),
+            frequency: document.getElementById('frequency'),
+            rotationSpeed: document.getElementById('rotationSpeed')
+        };
+        
+        controls.waveSpeed.addEventListener('input', (e) => {
+            instancedMesh.material.uniforms.waveSpeed.value = parseFloat(e.target.value);
+        });
+        
+        controls.waveHeight.addEventListener('input', (e) => {
+            instancedMesh.material.uniforms.waveHeight.value = parseFloat(e.target.value);
+        });
+        
+        controls.frequency.addEventListener('input', (e) => {
+            instancedMesh.material.uniforms.frequency.value = parseFloat(e.target.value);
+        });
+        
+        controls.rotationSpeed.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            orbitControls.autoRotateSpeed = val * 2;
+            orbitControls.autoRotate = val > 0;
+        });
+        
+        // Animation loop
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const elapsedTime = clock.getElapsedTime();
+            
+            instancedMesh.material.uniforms.time.value = elapsedTime;
+            
+            orbitControls.update();
+            
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start animation
+        animate();
+        
+        // Update instance count display
+        document.getElementById('instanceCount').textContent = instanceCount;
+    </script>
+</body>
+</html>

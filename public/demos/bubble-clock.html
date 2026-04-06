@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Clock - Cola</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  overflow: hidden;
+  cursor: none;
+  background: #1a0000;
+  font-family: 'Georgia', serif;
+}
+
+canvas {
+  display: block;
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 1;
+}
+
+#cursor-glow {
+  position: fixed;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+  transition: width 0.15s, height 0.15s;
+}
+
+.back-button {
+  position: fixed;
+  top: 20px; left: 20px;
+  z-index: 200;
+  background: rgba(0,0,0,0.25);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s;
+}
+.back-button:hover {
+  background: rgba(0,0,0,0.4);
+  color: #fff;
+}
+
+#controls {
+  position: fixed;
+  top: 20px; right: 20px;
+  z-index: 200;
+  width: 260px;
+  background: rgba(40, 0, 0, 0.6);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 180, 180, 0.12);
+  border-radius: 14px;
+  padding: 0;
+  color: rgba(255,255,255,0.85);
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  overflow: hidden;
+  transition: height 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s;
+  cursor: default;
+}
+#controls.collapsed .ctrl-body { display: none; }
+#controls.collapsed { width: auto; }
+
+.ctrl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid rgba(255,180,180,0.08);
+}
+.ctrl-header:hover { background: rgba(255,255,255,0.04); }
+.ctrl-header h3 {
+  margin: 0; font-size: 13px; font-weight: 600;
+  color: rgba(255,200,200,0.9);
+  letter-spacing: 0.5px;
+}
+.ctrl-toggle {
+  font-size: 10px; opacity: 0.5;
+  transition: transform 0.3s;
+}
+#controls.collapsed .ctrl-toggle { transform: rotate(180deg); }
+
+.ctrl-body { padding: 8px 14px 14px; }
+
+.ctrl-section {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.ctrl-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.ctrl-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255,150,150,0.6);
+  margin-bottom: 8px;
+}
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ctrl-row:last-child { margin-bottom: 0; }
+
+.ctrl-row label {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: rgba(255,255,255,0.65);
+}
+
+.ctrl-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+  margin: 0 8px;
+  cursor: pointer;
+}
+.ctrl-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: rgba(255,120,120,0.85);
+  border: 2px solid rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.ctrl-row input[type="range"]::-webkit-slider-thumb:hover {
+  background: rgba(255,160,160,1);
+}
+
+.ctrl-val {
+  min-width: 28px;
+  text-align: right;
+  font-size: 11px;
+  color: rgba(255,200,200,0.8);
+  font-variant-numeric: tabular-nums;
+}
+</style>
+</head>
+<body>
+
+<a href="../index.html" class="back-button">← Back</a>
+<div id="cursor-glow"></div>
+<canvas id="canvas"></canvas>
+
+<div id="controls">
+  <div class="ctrl-header" onclick="toggleControls()">
+    <h3>Controls</h3>
+    <span class="ctrl-toggle">▼</span>
+  </div>
+  <div class="ctrl-body">
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Clock Bubbles</div>
+      <div class="ctrl-row">
+        <label>Size</label>
+        <input type="range" id="ctrl-digit-size" min="4" max="20" step="0.5" value="9">
+        <span class="ctrl-val" id="val-digit-size">9</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Spacing</label>
+        <input type="range" id="ctrl-digit-spacing" min="8" max="30" step="1" value="15">
+        <span class="ctrl-val" id="val-digit-spacing">15</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Font</label>
+        <input type="range" id="ctrl-font-size" min="80" max="300" step="10" value="180">
+        <span class="ctrl-val" id="val-font-size">180</span>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Ambient</div>
+      <div class="ctrl-row">
+        <label>Count</label>
+        <input type="range" id="ctrl-ambient-count" min="10" max="200" step="5" value="80">
+        <span class="ctrl-val" id="val-ambient-count">80</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Max Size</label>
+        <input type="range" id="ctrl-ambient-size" min="3" max="20" step="1" value="10">
+        <span class="ctrl-val" id="val-ambient-size">10</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Speed</label>
+        <input type="range" id="ctrl-ambient-speed" min="0.1" max="2.0" step="0.05" value="0.5">
+        <span class="ctrl-val" id="val-ambient-speed">0.5</span>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Mouse Trail</div>
+      <div class="ctrl-row">
+        <label>Rate</label>
+        <input type="range" id="ctrl-trail-rate" min="1" max="10" step="1" value="3">
+        <span class="ctrl-val" id="val-trail-rate">3</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Max Size</label>
+        <input type="range" id="ctrl-trail-size" min="4" max="25" step="1" value="14">
+        <span class="ctrl-val" id="val-trail-size">14</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Speed</label>
+        <input type="range" id="ctrl-trail-speed" min="0.4" max="3.0" step="0.1" value="1.4">
+        <span class="ctrl-val" id="val-trail-speed">1.4</span>
+      </div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Effects</div>
+      <div class="ctrl-row">
+        <label>Light Rays</label>
+        <input type="range" id="ctrl-caustics" min="0" max="15" step="1" value="5">
+        <span class="ctrl-val" id="val-caustics">5</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Particles</label>
+        <input type="range" id="ctrl-plankton" min="0" max="100" step="5" value="30">
+        <span class="ctrl-val" id="val-plankton">30</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CONFIG = {
+  waterGradientTop: '#5c0a0a',
+  waterGradientMid: '#8b1a1a',
+  waterGradientBot: '#b22222',
+
+  ambientBubbleCount: 80,
+  ambientBubbleMinR: 2,
+  ambientBubbleMaxR: 10,
+  ambientRiseSpeed: 0.5,
+
+  trailBubbleRate: 3,
+  trailBubbleMinR: 3,
+  trailBubbleMaxR: 14,
+  trailRiseSpeed: 1.4,
+
+  digitBubbleRadius: 9,
+  digitBubbleSpacing: 15,
+  clockFontSize: 180,
+  clockY: 0.48,
+
+  clockHoverBurstCount: 80,
+  refillDelay: 600,
+  refillDuration: 1800,
+
+  causticRayCount: 5,
+  planktonCount: 30,
+};
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let mouseX = W / 2, mouseY = H / 2;
+let prevMouseX = mouseX, prevMouseY = mouseY;
+let mouseMoving = false;
+let mouseMoveTimer = 0;
+
+const cursorEl = document.getElementById('cursor-glow');
+
+window.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  mouseMoving = true;
+  clearTimeout(mouseMoveTimer);
+  mouseMoveTimer = setTimeout(() => { mouseMoving = false; }, 100);
+  cursorEl.style.left = mouseX + 'px';
+  cursorEl.style.top = mouseY + 'px';
+});
+
+function rand(a, b) { return Math.random() * (b - a) + a; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+// ─── BUBBLE (white carbonation style) ───────────────
+class Bubble {
+  constructor(x, y, r, speed, wobbleAmp, alpha) {
+    this.x = x;
+    this.y = y;
+    this.r = r;
+    this.baseR = r;
+    this.speed = speed;
+    this.wobbleAmp = wobbleAmp || rand(0.3, 1.2);
+    this.wobblePhase = rand(0, Math.PI * 2);
+    this.wobbleSpeed = rand(0.01, 0.03);
+    this.alpha = alpha || rand(0.15, 0.5);
+    this.alive = true;
+    this.age = 0;
+    this.maxAge = Infinity;
+  }
+
+  update() {
+    this.age++;
+    if (this.age > this.maxAge) { this.alive = false; return; }
+    this.y -= this.speed;
+    this.wobblePhase += this.wobbleSpeed;
+    this.x += Math.sin(this.wobblePhase) * this.wobbleAmp;
+    this.r = this.baseR + Math.sin(this.wobblePhase * 1.5) * this.baseR * 0.1;
+    if (this.y < -this.r * 2) this.alive = false;
+  }
+
+  draw(ctx) {
+    if (!this.alive) return;
+    const { x, y, r, alpha } = this;
+    ctx.save();
+
+    const glow = ctx.createRadialGradient(x, y, r * 0.2, x, y, r * 1.6);
+    glow.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.12})`);
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    grad.addColorStop(0, `rgba(255, 255, 255, ${alpha * 0.55})`);
+    grad.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.18})`);
+    grad.addColorStop(1, `rgba(255, 255, 255, ${alpha * 0.04})`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.3})`;
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.75})`;
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.25, y - r * 0.3, r * 0.2, r * 0.12, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+// ─── AMBIENT BUBBLES ────────────────────────────────
+let ambientBubbles = [];
+function initAmbientBubbles() {
+  ambientBubbles = [];
+  for (let i = 0; i < CONFIG.ambientBubbleCount; i++) {
+    const r = rand(CONFIG.ambientBubbleMinR, CONFIG.ambientBubbleMaxR);
+    ambientBubbles.push(new Bubble(
+      rand(0, W), rand(0, H), r,
+      rand(0.15, CONFIG.ambientRiseSpeed),
+      rand(0.2, 0.8), rand(0.06, 0.25)
+    ));
+  }
+}
+initAmbientBubbles();
+
+function updateAmbientBubbles() {
+  for (let b of ambientBubbles) {
+    b.update();
+    if (!b.alive) {
+      b.x = rand(0, W);
+      b.y = H + rand(10, 60);
+      b.baseR = rand(CONFIG.ambientBubbleMinR, CONFIG.ambientBubbleMaxR);
+      b.r = b.baseR;
+      b.speed = rand(0.15, CONFIG.ambientRiseSpeed);
+      b.alive = true;
+      b.age = 0;
+    }
+  }
+}
+
+// ─── MOUSE TRAIL BUBBLES ────────────────────────────
+let trailBubbles = [];
+
+function spawnTrailBubbles() {
+  if (!mouseMoving) return;
+  const dx = mouseX - prevMouseX;
+  const dy = mouseY - prevMouseY;
+  const speed = Math.hypot(dx, dy);
+  const count = Math.min(Math.floor(speed * 0.3) + 1, CONFIG.trailBubbleRate);
+
+  for (let i = 0; i < count; i++) {
+    const r = rand(CONFIG.trailBubbleMinR, CONFIG.trailBubbleMaxR);
+    const b = new Bubble(
+      mouseX + rand(-15, 15),
+      mouseY + rand(-10, 10),
+      r,
+      rand(0.6, CONFIG.trailRiseSpeed) + speed * 0.02,
+      rand(0.5, 2),
+      rand(0.15, 0.45)
+    );
+    b.maxAge = rand(80, 200);
+    b.driftX = dx * 0.02 + rand(-0.3, 0.3);
+    trailBubbles.push(b);
+  }
+  prevMouseX = mouseX;
+  prevMouseY = mouseY;
+}
+
+function updateTrailBubbles() {
+  for (let i = trailBubbles.length - 1; i >= 0; i--) {
+    const b = trailBubbles[i];
+    b.update();
+    if (b.driftX) b.x += b.driftX;
+    if (b.maxAge < Infinity && b.age / b.maxAge > 0.7) b.alpha *= 0.97;
+    if (!b.alive) trailBubbles.splice(i, 1);
+  }
+}
+
+// ─── CLOCK DIGIT SYSTEM (chunky white bubbles) ──────
+const offscreen = document.createElement('canvas');
+const offCtx = offscreen.getContext('2d');
+
+function getClockText() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function sampleTextBubbles(text, fontSize, spacing) {
+  offscreen.width = W;
+  offscreen.height = H;
+  offCtx.clearRect(0, 0, W, H);
+
+  const scaledFontSize = Math.min(fontSize, W * 0.14);
+
+  offCtx.font = `900 ${scaledFontSize}px Georgia, 'Times New Roman', serif`;
+  offCtx.textAlign = 'center';
+  offCtx.textBaseline = 'middle';
+  offCtx.fillStyle = '#fff';
+  offCtx.fillText(text, W / 2, H * CONFIG.clockY);
+
+  const imageData = offCtx.getImageData(0, 0, W, H);
+  const pixels = imageData.data;
+  const positions = [];
+
+  for (let y = 0; y < H; y += spacing) {
+    for (let x = 0; x < W; x += spacing) {
+      const idx = (y * W + x) * 4;
+      if (pixels[idx + 3] > 128) {
+        positions.push({ x, y });
+      }
+    }
+  }
+  return positions;
+}
+
+class DigitBubble {
+  constructor(tx, ty) {
+    this.tx = tx;
+    this.ty = ty;
+    this.x = tx;
+    this.y = ty;
+    this.r = CONFIG.digitBubbleRadius + rand(-1.5, 1.5);
+    this.baseR = this.r;
+    this.alpha = rand(0.55, 0.9);
+    this.wobblePhase = rand(0, Math.PI * 2);
+    this.wobbleSpeed = rand(0.012, 0.03);
+    this.state = 'idle';
+    this.burstVx = 0;
+    this.burstVy = 0;
+    this.burstAlpha = this.alpha;
+    this.refillProgress = 1;
+    this.refillDelay = 0;
+  }
+
+  burst() {
+    if (this.state !== 'idle') return;
+    this.state = 'bursting';
+    const angle = rand(0, Math.PI * 2);
+    const force = rand(1.5, 4.5);
+    this.burstVx = Math.cos(angle) * force + rand(-1, 1);
+    this.burstVy = -Math.abs(Math.sin(angle) * force) - rand(1.5, 3.5);
+    this.burstAlpha = this.alpha;
+  }
+
+  update() {
+    this.wobblePhase += this.wobbleSpeed;
+
+    if (this.state === 'idle') {
+      this.x = this.tx + Math.sin(this.wobblePhase) * 2;
+      this.y = this.ty + Math.cos(this.wobblePhase * 0.7) * 1.2;
+      this.r = this.baseR + Math.sin(this.wobblePhase * 1.2) * 0.8;
+    }
+    else if (this.state === 'bursting') {
+      this.x += this.burstVx;
+      this.y += this.burstVy;
+      this.burstVy -= 0.06;
+      this.burstVx *= 0.99;
+      this.burstAlpha *= 0.955;
+      this.r *= 0.993;
+      if (this.burstAlpha < 0.01 || this.y < -50) this.state = 'gone';
+    }
+    else if (this.state === 'refilling') {
+      if (this.refillDelay > 0) { this.refillDelay--; return; }
+      this.refillProgress = Math.min(1, this.refillProgress + 0.016);
+      const t = easeOutCubic(this.refillProgress);
+      this.x = lerp(this.x, this.tx, 0.055);
+      this.y = lerp(this.y, this.ty, 0.055);
+      this.alpha = lerp(0, rand(0.55, 0.9), t);
+      this.r = lerp(0, this.baseR, t);
+      if (this.refillProgress >= 1 && dist(this.x, this.y, this.tx, this.ty) < 2) {
+        this.state = 'idle';
+        this.x = this.tx;
+        this.y = this.ty;
+      }
+    }
+  }
+
+  draw(ctx) {
+    if (this.state === 'gone') return;
+    const alpha = this.state === 'bursting' ? this.burstAlpha : this.alpha;
+    if (alpha < 0.01) return;
+    const { x, y, r } = this;
+
+    ctx.save();
+
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+    glow.addColorStop(0, `rgba(255,255,255,${alpha * 0.18})`);
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.05, x, y, r);
+    grad.addColorStop(0, `rgba(255,255,255,${alpha * 0.85})`);
+    grad.addColorStop(0.35, `rgba(255,255,255,${alpha * 0.4})`);
+    grad.addColorStop(0.7, `rgba(255,240,240,${alpha * 0.15})`);
+    grad.addColorStop(1, `rgba(255,220,220,${alpha * 0.05})`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.35})`;
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
+    ctx.fillStyle = `rgba(255,255,255,${alpha * 0.9})`;
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.22, y - r * 0.28, r * 0.2, r * 0.12, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+let digitBubbles = [];
+let lastClockText = '';
+let clockBounds = { x: 0, y: 0, w: 0, h: 0 };
+let isClockBurst = false;
+let burstCooldown = 0;
+
+function rebuildClockBubbles() {
+  const text = getClockText();
+  if (text === lastClockText && digitBubbles.length > 0) return;
+  lastClockText = text;
+
+  const newPositions = sampleTextBubbles(text, CONFIG.clockFontSize, CONFIG.digitBubbleSpacing);
+
+  if (newPositions.length > 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of newPositions) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    clockBounds = { x: minX - 25, y: minY - 25, w: maxX - minX + 50, h: maxY - minY + 50 };
+  }
+
+  if (digitBubbles.length === 0 || isClockBurst) {
+    digitBubbles = newPositions.map(p => new DigitBubble(p.x, p.y));
+    if (isClockBurst) {
+      digitBubbles.forEach((b) => {
+        b.state = 'refilling';
+        b.refillDelay = rand(0, CONFIG.refillDuration / 16);
+        b.refillProgress = 0;
+        b.x = b.tx + rand(-50, 50);
+        b.y = b.ty + rand(80, 180);
+        b.alpha = 0;
+      });
+      isClockBurst = false;
+    }
+    return;
+  }
+
+  const reuse = Math.min(digitBubbles.length, newPositions.length);
+  for (let i = 0; i < reuse; i++) {
+    if (digitBubbles[i].state === 'idle') {
+      digitBubbles[i].tx = newPositions[i].x;
+      digitBubbles[i].ty = newPositions[i].y;
+    }
+  }
+  for (let i = reuse; i < newPositions.length; i++) {
+    const b = new DigitBubble(newPositions[i].x, newPositions[i].y);
+    b.state = 'refilling';
+    b.refillDelay = rand(0, 30);
+    b.refillProgress = 0;
+    b.x = b.tx + rand(-20, 20);
+    b.y = b.ty + rand(40, 80);
+    b.alpha = 0;
+    digitBubbles.push(b);
+  }
+  if (digitBubbles.length > newPositions.length) {
+    digitBubbles.length = newPositions.length;
+  }
+}
+
+function isMouseOverClock() {
+  return mouseX >= clockBounds.x && mouseX <= clockBounds.x + clockBounds.w &&
+         mouseY >= clockBounds.y && mouseY <= clockBounds.y + clockBounds.h;
+}
+
+function burstClockBubbles() {
+  if (burstCooldown > 0) return;
+  let anyBurst = false;
+  for (const b of digitBubbles) {
+    if (b.state === 'idle' || b.state === 'refilling') {
+      b.burst();
+      anyBurst = true;
+    }
+  }
+  if (anyBurst) {
+    burstCooldown = 120;
+    setTimeout(() => {
+      isClockBurst = true;
+      lastClockText = '';
+    }, CONFIG.refillDelay);
+  }
+}
+
+canvas.addEventListener('click', () => {
+  if (isMouseOverClock()) burstClockBubbles();
+});
+
+let clockHoverAccum = 0;
+function checkClockHover() {
+  if (isMouseOverClock() && mouseMoving) {
+    clockHoverAccum++;
+    if (clockHoverAccum > 20) {
+      burstClockBubbles();
+      clockHoverAccum = 0;
+    }
+  } else {
+    clockHoverAccum = Math.max(0, clockHoverAccum - 1);
+  }
+}
+
+// ─── CAUSTIC LIGHT RAYS (warm tone) ─────────────────
+class CausticRay {
+  constructor() { this.reset(); }
+  reset() {
+    this.x = rand(0, W);
+    this.width = rand(40, 140);
+    this.alpha = rand(0.02, 0.06);
+    this.speed = rand(0.1, 0.3);
+    this.wobble = rand(0.003, 0.008);
+    this.phase = rand(0, Math.PI * 2);
+    this.angle = rand(-0.15, 0.15);
+  }
+  update() {
+    this.phase += this.wobble;
+    this.x += Math.sin(this.phase) * this.speed;
+  }
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, 0);
+    ctx.rotate(this.angle);
+    const grad = ctx.createLinearGradient(-this.width / 2, 0, this.width / 2, 0);
+    grad.addColorStop(0, 'transparent');
+    grad.addColorStop(0.3, `rgba(255, 200, 150, ${this.alpha})`);
+    grad.addColorStop(0.5, `rgba(255, 230, 180, ${this.alpha * 1.4})`);
+    grad.addColorStop(0.7, `rgba(255, 200, 150, ${this.alpha})`);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fillRect(-this.width / 2, 0, this.width, H);
+    ctx.restore();
+  }
+}
+
+let causticRays = [];
+for (let i = 0; i < CONFIG.causticRayCount; i++) causticRays.push(new CausticRay());
+
+// ─── FLOATING PARTICLES ─────────────────────────────
+class Plankton {
+  constructor() {
+    this.x = rand(0, W);
+    this.y = rand(0, H);
+    this.r = rand(0.4, 1.8);
+    this.alpha = rand(0.08, 0.25);
+    this.vx = rand(-0.15, 0.15);
+    this.vy = rand(-0.12, 0.12);
+    this.phase = rand(0, Math.PI * 2);
+    this.twinkleSpeed = rand(0.01, 0.04);
+  }
+  update() {
+    this.x += this.vx + Math.sin(this.phase) * 0.08;
+    this.y += this.vy + Math.cos(this.phase * 0.7) * 0.06;
+    this.phase += this.twinkleSpeed;
+    if (this.x < 0) this.x = W;
+    if (this.x > W) this.x = 0;
+    if (this.y < 0) this.y = H;
+    if (this.y > H) this.y = 0;
+  }
+  draw(ctx) {
+    const flicker = 0.5 + 0.5 * Math.sin(this.phase * 3);
+    const a = this.alpha * flicker;
+    ctx.fillStyle = `rgba(255, 230, 200, ${a})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+let planktons = [];
+for (let i = 0; i < CONFIG.planktonCount; i++) planktons.push(new Plankton());
+
+// ─── WATER SURFACE (top) ────────────────────────────
+let waveTime = 0;
+
+function drawWaterSurface(ctx) {
+  waveTime += 0.008;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  for (let x = 0; x <= W; x += 4) {
+    const y = 10 +
+      Math.sin(x * 0.008 + waveTime) * 5 +
+      Math.sin(x * 0.015 + waveTime * 1.3) * 2.5 +
+      Math.sin(x * 0.003 + waveTime * 0.7) * 7;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, 0);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, 25);
+  grad.addColorStop(0, 'rgba(255, 200, 150, 0.2)');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+}
+
+// ─── BACKGROUND ─────────────────────────────────────
+function drawBackground(ctx) {
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, CONFIG.waterGradientTop);
+  grad.addColorStop(0.45, CONFIG.waterGradientMid);
+  grad.addColorStop(1, CONFIG.waterGradientBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  const vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.95);
+  vignette.addColorStop(0, 'transparent');
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawMouseLight(ctx) {
+  const grad = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 180);
+  grad.addColorStop(0, 'rgba(255, 220, 200, 0.06)');
+  grad.addColorStop(0.5, 'rgba(255, 180, 150, 0.03)');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(mouseX, mouseY, 180, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawDepthFog(ctx) {
+  const grad = ctx.createLinearGradient(0, H * 0.65, 0, H);
+  grad.addColorStop(0, 'transparent');
+  grad.addColorStop(1, 'rgba(30, 0, 0, 0.3)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ─── MAIN LOOP ──────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+
+  drawBackground(ctx);
+
+  for (const ray of causticRays) { ray.update(); ray.draw(ctx); }
+
+  drawMouseLight(ctx);
+
+  for (const p of planktons) { p.update(); p.draw(ctx); }
+
+  updateAmbientBubbles();
+  for (const b of ambientBubbles) b.draw(ctx);
+
+  spawnTrailBubbles();
+  updateTrailBubbles();
+  for (const b of trailBubbles) b.draw(ctx);
+
+  if (burstCooldown > 0) burstCooldown--;
+  rebuildClockBubbles();
+  checkClockHover();
+  for (const b of digitBubbles) { b.update(); b.draw(ctx); }
+
+  drawWaterSurface(ctx);
+  drawDepthFog(ctx);
+
+  prevMouseX = mouseX;
+  prevMouseY = mouseY;
+}
+
+animate();
+
+// ─── RESIZE ─────────────────────────────────────────
+window.addEventListener('resize', () => {
+  lastClockText = '';
+  digitBubbles = [];
+  ambientBubbles = [];
+  initAmbientBubbles();
+  causticRays.forEach(r => r.reset());
+  planktons.forEach(p => { p.x = rand(0, W); p.y = rand(0, H); });
+});
+
+// ─── CONTROLS ───────────────────────────────────────
+function toggleControls() {
+  document.getElementById('controls').classList.toggle('collapsed');
+}
+
+function bindSlider(id, valId, configKey, onChange) {
+  const slider = document.getElementById(id);
+  const valEl = document.getElementById(valId);
+  slider.addEventListener('input', () => {
+    const v = parseFloat(slider.value);
+    valEl.textContent = v % 1 === 0 ? v : v.toFixed(1);
+    CONFIG[configKey] = v;
+    if (onChange) onChange(v);
+  });
+}
+
+bindSlider('ctrl-digit-size', 'val-digit-size', 'digitBubbleRadius', () => {
+  lastClockText = '';
+  digitBubbles = [];
+});
+bindSlider('ctrl-digit-spacing', 'val-digit-spacing', 'digitBubbleSpacing', () => {
+  lastClockText = '';
+  digitBubbles = [];
+});
+bindSlider('ctrl-font-size', 'val-font-size', 'clockFontSize', () => {
+  lastClockText = '';
+  digitBubbles = [];
+});
+
+bindSlider('ctrl-ambient-count', 'val-ambient-count', 'ambientBubbleCount', (v) => {
+  while (ambientBubbles.length < v) {
+    const r = rand(CONFIG.ambientBubbleMinR, CONFIG.ambientBubbleMaxR);
+    ambientBubbles.push(new Bubble(rand(0, W), rand(0, H), r, rand(0.15, CONFIG.ambientRiseSpeed), rand(0.2, 0.8), rand(0.06, 0.25)));
+  }
+  if (ambientBubbles.length > v) ambientBubbles.length = v;
+});
+bindSlider('ctrl-ambient-size', 'val-ambient-size', 'ambientBubbleMaxR');
+bindSlider('ctrl-ambient-speed', 'val-ambient-speed', 'ambientRiseSpeed');
+
+bindSlider('ctrl-trail-rate', 'val-trail-rate', 'trailBubbleRate');
+bindSlider('ctrl-trail-size', 'val-trail-size', 'trailBubbleMaxR');
+bindSlider('ctrl-trail-speed', 'val-trail-speed', 'trailRiseSpeed');
+
+bindSlider('ctrl-caustics', 'val-caustics', 'causticRayCount', (v) => {
+  while (causticRays.length < v) causticRays.push(new CausticRay());
+  if (causticRays.length > v) causticRays.length = v;
+});
+bindSlider('ctrl-plankton', 'val-plankton', 'planktonCount', (v) => {
+  while (planktons.length < v) planktons.push(new Plankton());
+  if (planktons.length > v) planktons.length = v;
+});
+
+document.getElementById('controls').addEventListener('mouseenter', () => {
+  document.body.style.cursor = 'default';
+  cursorEl.style.display = 'none';
+});
+document.getElementById('controls').addEventListener('mouseleave', () => {
+  document.body.style.cursor = 'none';
+  cursorEl.style.display = 'block';
+});
+</script>
+</body>
+</html>

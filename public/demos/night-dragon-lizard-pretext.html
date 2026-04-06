@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Night Familiar - Pretext Cursor Creature</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Nanum+Myeongjo:wght@400;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: radial-gradient(circle at 25% 20%, #1e2f54 0%, #101528 40%, #070a14 100%);
+      color: #d8def1;
+      overflow: hidden;
+      cursor: none;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: 'Cormorant Garamond', serif;
+    }
+
+    canvas {
+      position: fixed;
+      inset: 0;
+      display: block;
+      z-index: 0;
+    }
+
+    #text-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .pretext {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(78vw, 840px);
+      text-align: center;
+      text-shadow: 0 0 12px rgba(126, 175, 255, 0.35), 0 0 48px rgba(96, 118, 255, 0.2);
+      color: rgba(224, 235, 255, 0.86);
+    }
+
+    .title {
+      top: 12%;
+      font-size: clamp(2.1rem, 5vw, 3.5rem);
+      letter-spacing: 0.22em;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      top: 23%;
+      font-size: clamp(0.9rem, 1.8vw, 1.2rem);
+      letter-spacing: 0.28em;
+      color: rgba(178, 205, 255, 0.7);
+    }
+
+    .body {
+      top: 34%;
+      font-family: 'Nanum Myeongjo', serif;
+      font-size: clamp(1rem, 2vw, 1.18rem);
+      line-height: 1.95;
+      color: rgba(210, 225, 255, 0.78);
+    }
+
+    .body .char {
+      display: inline-block;
+      will-change: transform;
+      transform: translate(0, 0);
+    }
+
+    .incantation {
+      top: 74%;
+      font-size: clamp(1.1rem, 2.6vw, 1.7rem);
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: rgba(156, 228, 255, 0.95);
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      font-size: 0.86rem;
+      letter-spacing: 0.09em;
+      color: rgba(188, 204, 238, 0.78);
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(160, 186, 255, 0.3);
+      background: rgba(10, 17, 35, 0.48);
+      backdrop-filter: blur(3px);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .text-control {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      width: min(620px, 92vw);
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(170, 197, 255, 0.34);
+      background: rgba(8, 16, 33, 0.55);
+      backdrop-filter: blur(4px);
+      color: rgba(208, 224, 255, 0.95);
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      pointer-events: auto;
+    }
+
+    .text-control input[type="range"] {
+      width: 100%;
+      accent-color: #8fd6ff;
+      cursor: pointer;
+    }
+
+    .text-control .value {
+      min-width: 48px;
+      text-align: right;
+      color: rgba(160, 220, 255, 0.98);
+      font-weight: 700;
+    }
+
+    .preset-group {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .preset-btn {
+      border: 1px solid rgba(160, 196, 255, 0.38);
+      background: rgba(16, 28, 52, 0.52);
+      color: rgba(208, 224, 255, 0.9);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .preset-btn:hover {
+      border-color: rgba(173, 218, 255, 0.72);
+      color: rgba(226, 242, 255, 1);
+    }
+
+    .preset-btn.active {
+      border-color: rgba(128, 214, 255, 0.95);
+      background: rgba(60, 116, 201, 0.4);
+      color: rgba(234, 247, 255, 1);
+      box-shadow: 0 0 12px rgba(110, 192, 255, 0.28);
+    }
+
+    @media (max-width: 740px) {
+      .text-control {
+        grid-template-columns: auto 1fr auto;
+      }
+
+      .preset-group {
+        grid-column: 1 / -1;
+        justify-content: center;
+      }
+    }
+
+    #cursor-glow {
+      position: fixed;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      background: radial-gradient(circle, rgba(160, 225, 255, 0.56) 0%, rgba(95, 146, 255, 0.22) 45%, transparent 70%);
+      mix-blend-mode: screen;
+    }
+  </style>
+</head>
+<body>
+  <div class="text-control" id="text-control">
+    <span>TEXT</span>
+    <input id="text-length" type="range" min="25" max="100" step="1" value="100" />
+    <span class="value" id="text-length-value">100%</span>
+    <div class="preset-group" id="preset-group">
+      <button class="preset-btn" type="button" data-preset="35">짧음</button>
+      <button class="preset-btn" type="button" data-preset="65">중간</button>
+      <button class="preset-btn active" type="button" data-preset="100">김</button>
+    </div>
+  </div>
+
+  <div id="text-layer">
+    <div class="pretext title">MOONLIT FAMILIAR</div>
+    <div class="pretext subtitle">✦ PRETEXT GLYPH NIGHT DEMO ✦</div>
+    <div class="pretext body" id="story"></div>
+    <div class="pretext incantation">🐉 ⇄ 🦎 NOX·DRACO·LACERTA</div>
+  </div>
+
+  <div id="cursor-glow"></div>
+  <button id="toggle" class="hint">현재: 용 (SPACE / 클릭으로 전환)</button>
+
+  <script type="module">
+    import { prepare, layout, walkLineRanges } from 'https://cdn.jsdelivr.net/npm/@chenglou/pretext@0.0.3/dist/layout.js';
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    document.body.prepend(canvas);
+
+    const mouse = { x: window.innerWidth * 0.5, y: window.innerHeight * 0.56, px: 0, py: 0 };
+    const influencePoint = { x: mouse.x, y: mouse.y };
+    const cursorGlow = document.getElementById('cursor-glow');
+    const toggleButton = document.getElementById('toggle');
+    const textLengthInput = document.getElementById('text-length');
+    const textLengthValue = document.getElementById('text-length-value');
+    const story = document.getElementById('story');
+    const presetButtons = Array.from(document.querySelectorAll('.preset-btn'));
+
+    let W = 0;
+    let H = 0;
+    let t = 0;
+    let glyphs = [];
+    let textChars = [];
+    let creatureMode = 'dragon';
+    const fullStory = '달빛이 스며든 밤, 고대 문장의 글리프가 호흡하듯 흔들립니다. 커서를 움직이면 야행성 파수꾼이 그 궤적을 따라 미끄러지듯 유영합니다. 스페이스를 누르거나 하단 힌트를 클릭해 용과 도마뱀 형태를 전환해보세요. pretext 기반 글리프 레이아웃 덕분에 텍스트 양이 달라져도 배치가 자연스럽게 유지됩니다.';
+
+    function applyStoryByRatio(ratio) {
+      const minChars = 24;
+      const targetChars = Math.max(minChars, Math.floor(fullStory.length * ratio));
+      const truncated = fullStory.slice(0, targetChars);
+      const lastSpace = truncated.lastIndexOf(' ');
+      const finalText = targetChars >= fullStory.length
+        ? fullStory
+        : (lastSpace > minChars ? `${truncated.slice(0, lastSpace)}…` : `${truncated}…`);
+      renderStoryChars(finalText);
+      rebuildGlyphs();
+    }
+
+    function renderStoryChars(text) {
+      story.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      for (const ch of text) {
+        const span = document.createElement('span');
+        span.className = 'char';
+        span.textContent = ch === ' ' ? '\u00A0' : ch;
+        frag.appendChild(span);
+      }
+      story.appendChild(frag);
+      requestAnimationFrame(rebuildTextChars);
+    }
+
+    function rebuildTextChars() {
+      textChars = Array.from(story.querySelectorAll('.char')).map((el) => {
+        const rect = el.getBoundingClientRect();
+        return {
+          el,
+          cx: rect.left + rect.width * 0.5,
+          cy: rect.top + rect.height * 0.5,
+          tx: 0,
+          ty: 0,
+          vx: 0,
+          vy: 0
+        };
+      });
+    }
+
+    function updateTextSplit() {
+      const range = 170;
+      for (const c of textChars) {
+        const dx = c.cx - influencePoint.x;
+        const dy = c.cy - influencePoint.y;
+        const d = Math.hypot(dx, dy) + 0.0001;
+        if (d < range) {
+          const force = (1 - d / range) * 1.9;
+          c.vx += (dx / d) * force;
+          c.vy += (dy / d) * force;
+        }
+
+        c.vx += -c.tx * 0.06;
+        c.vy += -c.ty * 0.06;
+        c.vx *= 0.82;
+        c.vy *= 0.82;
+        c.tx += c.vx;
+        c.ty += c.vy;
+
+        c.el.style.transform = `translate(${c.tx.toFixed(2)}px, ${c.ty.toFixed(2)}px)`;
+      }
+    }
+
+    function syncPresetState(percent) {
+      const closest = presetButtons.reduce((prev, btn) => {
+        const value = Number(btn.dataset.preset);
+        return Math.abs(value - percent) < Math.abs(prev - percent) ? value : prev;
+      }, Number(presetButtons[0].dataset.preset));
+
+      presetButtons.forEach((btn) => {
+        const value = Number(btn.dataset.preset);
+        btn.classList.toggle('active', value === closest && Math.abs(value - percent) <= 2);
+      });
+    }
+
+    function applyTextByPercent(percent) {
+      const clamped = Math.min(100, Math.max(25, percent));
+      textLengthInput.value = String(clamped);
+      textLengthValue.textContent = `${clamped}%`;
+      applyStoryByRatio(clamped / 100);
+      syncPresetState(clamped);
+    }
+
+    const stars = Array.from({ length: 120 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: 0.4 + Math.random() * 1.8,
+      tw: Math.random() * Math.PI * 2,
+      speed: 0.35 + Math.random() * 0.95
+    }));
+
+    const SEGMENTS = 28;
+    const chain = Array.from({ length: SEGMENTS }, (_, i) => ({
+      x: mouse.x - i * 11,
+      y: mouse.y,
+      a: 0,
+      phase: Math.random() * Math.PI * 2
+    }));
+
+    function resize() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      rebuildGlyphs();
+    }
+
+    function getGlyphAnchors(el, text, font, lineHeight) {
+      const rect = el.getBoundingClientRect();
+      const anchors = [];
+      try {
+        const prepared = prepare(text, font);
+        let lineIndex = 0;
+        walkLineRanges(prepared, rect.width, (line) => {
+          const lineText = text.substring(line.start, line.end);
+          let xCursor = 0;
+          for (let i = 0; i < lineText.length; i++) {
+            const ch = lineText[i];
+            if (ch === ' ' || ch === '\n') {
+              xCursor += parseFloat(getComputedStyle(el).fontSize) * 0.32;
+              continue;
+            }
+            const cp = prepare(ch, font);
+            const { height } = layout(cp, rect.width, lineHeight);
+            const cw = Math.max(parseFloat(getComputedStyle(el).fontSize) * 0.34, height || 0);
+            anchors.push({
+              ox: rect.left + xCursor + cw * 0.5,
+              oy: rect.top + lineIndex * lineHeight + lineHeight * 0.52,
+              x: rect.left + xCursor + cw * 0.5,
+              y: rect.top + lineIndex * lineHeight + lineHeight * 0.52,
+              vx: 0,
+              vy: 0,
+              hue: 200 + Math.random() * 28,
+              phase: Math.random() * Math.PI * 2
+            });
+            xCursor += cw + 1;
+          }
+          lineIndex++;
+        });
+      } catch (_) {
+        const fs = parseFloat(getComputedStyle(el).fontSize) || 16;
+        const step = fs * 0.6;
+        const cols = Math.max(1, Math.floor(rect.width / step));
+        let row = 0;
+        let idx = 0;
+        while (idx < text.length) {
+          for (let c = 0; c < cols && idx < text.length; c++, idx++) {
+            const ch = text[idx];
+            if (ch === ' ' || ch === '\n') continue;
+            anchors.push({
+              ox: rect.left + c * step + step * 0.5,
+              oy: rect.top + row * lineHeight + lineHeight * 0.52,
+              x: rect.left + c * step + step * 0.5,
+              y: rect.top + row * lineHeight + lineHeight * 0.52,
+              vx: 0,
+              vy: 0,
+              hue: 200 + Math.random() * 28,
+              phase: Math.random() * Math.PI * 2
+            });
+          }
+          row++;
+        }
+      }
+      return anchors;
+    }
+
+    function rebuildGlyphs() {
+      glyphs = [];
+      document.querySelectorAll('.pretext').forEach((el) => {
+        const style = getComputedStyle(el);
+        const text = (el.textContent || '').trim();
+        if (!text) return;
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.8;
+        const anchors = getGlyphAnchors(el, text, style.font, lineHeight);
+        glyphs.push(...anchors);
+      });
+    }
+
+    function updateGlyphs() {
+      for (const g of glyphs) {
+        const dx = g.x - influencePoint.x;
+        const dy = g.y - influencePoint.y;
+        const d = Math.hypot(dx, dy) + 0.0001;
+        const repelRange = 135;
+        if (d < repelRange) {
+          const force = (1 - d / repelRange) * 0.5;
+          g.vx += (dx / d) * force;
+          g.vy += (dy / d) * force;
+        }
+
+        const driftX = Math.cos(t * 1.8 + g.phase) * 0.09;
+        const driftY = Math.sin(t * 1.5 + g.phase) * 0.08;
+
+        g.vx += (g.ox - g.x) * 0.012 + driftX;
+        g.vy += (g.oy - g.y) * 0.012 + driftY;
+        g.vx *= 0.9;
+        g.vy *= 0.9;
+        g.x += g.vx;
+        g.y += g.vy;
+      }
+    }
+
+    function drawSky() {
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#0a1430');
+      bg.addColorStop(0.45, '#090f25');
+      bg.addColorStop(1, '#050810');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      const moonX = W * 0.82;
+      const moonY = H * 0.2;
+      const moonR = Math.min(W, H) * 0.085;
+      const moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonR * 2.2);
+      moonGlow.addColorStop(0, 'rgba(212, 230, 255, 0.72)');
+      moonGlow.addColorStop(0.45, 'rgba(168, 198, 255, 0.22)');
+      moonGlow.addColorStop(1, 'rgba(110, 145, 235, 0)');
+      ctx.fillStyle = moonGlow;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(235, 241, 255, 0.88)';
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (const s of stars) {
+        const x = s.x * W;
+        const y = s.y * H;
+        const twinkle = 0.45 + 0.55 * Math.sin(t * s.speed + s.tw);
+        ctx.fillStyle = `rgba(180, 215, 255, ${0.15 + twinkle * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(x, y, s.r * (0.75 + twinkle * 0.35), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function updateCreature() {
+      const head = chain[0];
+      head.x += (mouse.x - head.x) * 0.11;
+      head.y += (mouse.y - head.y) * 0.11;
+      head.a = Math.atan2(mouse.y - head.y, mouse.x - head.x);
+
+      const spacing = creatureMode === 'dragon' ? 11 : 9;
+      for (let i = 1; i < chain.length; i++) {
+        const prev = chain[i - 1];
+        const c = chain[i];
+        const vx = c.x - prev.x;
+        const vy = c.y - prev.y;
+        const dist = Math.hypot(vx, vy) || 1;
+        c.x = prev.x + (vx / dist) * spacing;
+        c.y = prev.y + (vy / dist) * spacing;
+        c.a = Math.atan2(prev.y - c.y, prev.x - c.x);
+      }
+
+      influencePoint.x = head.x;
+      influencePoint.y = head.y;
+      cursorGlow.style.left = `${head.x}px`;
+      cursorGlow.style.top = `${head.y}px`;
+    }
+
+    function drawCreature() {
+      const dragon = creatureMode === 'dragon';
+      const core = dragon ? 'rgba(95, 222, 255, 0.85)' : 'rgba(146, 247, 199, 0.88)';
+      const edge = dragon ? 'rgba(120, 151, 255, 0.78)' : 'rgba(80, 170, 130, 0.8)';
+
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const c = chain[i];
+        const ratio = 1 - i / chain.length;
+        const pulse = Math.sin(t * 4.2 + c.phase + i * 0.2) * 0.8;
+        const w = (dragon ? 2.8 : 3.4) + ratio * (dragon ? 15 : 11) + pulse;
+
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.a);
+
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, w, w * (dragon ? 0.48 : 0.66), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (dragon && i > 1 && i % 2 === 0) {
+          ctx.strokeStyle = `rgba(196, 233, 255, ${0.22 + ratio * 0.42})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(0, -w * 0.54);
+          ctx.lineTo(-w * 0.35, -w * 1.1);
+          ctx.lineTo(w * 0.35, -w * 1.1);
+          ctx.closePath();
+          ctx.stroke();
+        }
+
+        if (!dragon && i % 4 === 0 && i > 2) {
+          ctx.strokeStyle = edge;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(-w * 0.55, w * 0.25);
+          ctx.lineTo(-w * 1.25, w * 0.65);
+          ctx.moveTo(w * 0.55, w * 0.25);
+          ctx.lineTo(w * 1.25, w * 0.65);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      const h = chain[0];
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.a);
+
+      ctx.fillStyle = edge;
+      ctx.beginPath();
+      ctx.ellipse(2, 0, dragon ? 18 : 15, dragon ? 11 : 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (dragon) {
+        ctx.strokeStyle = 'rgba(216, 240, 255, 0.9)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-6, -6);
+        ctx.lineTo(-10, -13);
+        ctx.moveTo(2, -7);
+        ctx.lineTo(0, -14);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#f4fbff';
+      ctx.beginPath();
+      ctx.arc(8, -3.5, 1.6, 0, Math.PI * 2);
+      ctx.arc(8, 3.5, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawGlyphs() {
+      for (const g of glyphs) {
+        const glow = 0.3 + 0.7 * Math.sin(t * 2 + g.phase) ** 2;
+        ctx.fillStyle = `hsla(${g.hue}, 95%, 76%, ${0.22 + glow * 0.52})`;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, 0.75 + glow * 1.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function tick() {
+      t += 0.016;
+      drawSky();
+      updateCreature();
+      updateGlyphs();
+      updateTextSplit();
+      drawGlyphs();
+      drawCreature();
+      requestAnimationFrame(tick);
+    }
+
+    function switchCreature() {
+      creatureMode = creatureMode === 'dragon' ? 'lizard' : 'dragon';
+      toggleButton.textContent = `현재: ${creatureMode === 'dragon' ? '용' : '도마뱀'} (SPACE / 클릭으로 전환)`;
+    }
+
+    textLengthInput.addEventListener('input', () => {
+      applyTextByPercent(Number(textLengthInput.value));
+    });
+
+    presetButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        applyTextByPercent(Number(btn.dataset.preset));
+      });
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      mouse.px = mouse.x;
+      mouse.py = mouse.y;
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    document.addEventListener('touchmove', (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      mouse.x = t.clientX;
+      mouse.y = t.clientY;
+    }, { passive: true });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        switchCreature();
+      }
+    });
+
+    toggleButton.addEventListener('click', switchCreature);
+    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => requestAnimationFrame(rebuildTextChars));
+
+    document.fonts.ready.then(() => {
+      applyTextByPercent(100);
+      resize();
+      rebuildTextChars();
+      tick();
+    });
+  </script>
+</body>
+</html>

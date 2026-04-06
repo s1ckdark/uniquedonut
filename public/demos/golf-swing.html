@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golf Swing</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; }
+  canvas { display: block; }
+  #info {
+    position: fixed; top: 20px; left: 20px;
+    color: #fff; font-family: 'Helvetica Neue', sans-serif;
+    font-size: 14px; opacity: 0.6; pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  }
+  #info h1 { font-size: 18px; font-weight: 300; margin-bottom: 4px; }
+  #info p { font-size: 12px; font-weight: 300; }
+</style>
+</head>
+<body>
+<div id="info">
+  <h1>Golf Swing</h1>
+  <p>drag to rotate &middot; scroll to zoom</p>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Scene Setup ──
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb, 30, 80);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(3, 2.5, 4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 2;
+controls.maxDistance = 15;
+
+// ── Lighting ──
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(5, 8, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 25;
+dirLight.shadow.camera.left = -5;
+dirLight.shadow.camera.right = 5;
+dirLight.shadow.camera.top = 5;
+dirLight.shadow.camera.bottom = -5;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xaaccff, 0.4);
+fillLight.position.set(-3, 4, -2);
+scene.add(fillLight);
+
+// ── Materials ──
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5cba7, roughness: 0.7 });
+const hairMat = new THREE.MeshStandardMaterial({ color: 0x2c1810, roughness: 0.8 });
+const shirtMat = new THREE.MeshStandardMaterial({ color: 0xff6b9d, roughness: 0.6 });
+const skirtMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.5 });
+const shoeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+const clubShaftMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.3, metalness: 0.7 });
+const clubHeadMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2, metalness: 0.9 });
+const gloveMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a8c3f, roughness: 0.9 });
+const teeMat = new THREE.MeshStandardMaterial({ color: 0xf5deb3, roughness: 0.6 });
+
+// ── Helper: create mesh ──
+function mesh(geo, mat) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// ── Ground ──
+const ground = mesh(new THREE.PlaneGeometry(40, 40), groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ── Tee ──
+const tee = mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.05, 8), teeMat);
+tee.position.set(0, 0.025, 0);
+scene.add(tee);
+
+// ── Golf Ball ──
+const ball = mesh(new THREE.SphereGeometry(0.021, 16, 16), ballMat);
+ball.position.set(0, 0.06, 0);
+scene.add(ball);
+
+// Ball in flight (hidden initially)
+const flyBall = mesh(new THREE.SphereGeometry(0.021, 16, 16), ballMat);
+flyBall.visible = false;
+scene.add(flyBall);
+
+// ── Build Golfer ──
+const golfer = new THREE.Group();
+scene.add(golfer);
+golfer.position.set(0, 0, 0.45);
+golfer.rotation.y = Math.PI;  // face -Z toward the ball
+
+// Pelvis (root)
+const pelvis = new THREE.Group();
+golfer.add(pelvis);
+pelvis.position.y = 0.85;
+
+const pelvisMesh = mesh(new THREE.SphereGeometry(0.13, 12, 12), skirtMat);
+pelvisMesh.scale.set(1.2, 0.8, 1);
+pelvis.add(pelvisMesh);
+
+// Spine / Torso
+const spine = new THREE.Group();
+pelvis.add(spine);
+spine.position.y = 0.05;
+
+const torsoMesh = mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.35, 12), shirtMat);
+torsoMesh.position.y = 0.2;
+spine.add(torsoMesh);
+
+// Chest
+const chest = new THREE.Group();
+spine.add(chest);
+chest.position.y = 0.38;
+
+const chestMesh = mesh(new THREE.SphereGeometry(0.12, 12, 12), shirtMat);
+chestMesh.scale.set(1.1, 0.8, 0.9);
+chest.add(chestMesh);
+
+// Neck + Head
+const neck = mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.08, 8), skinMat);
+neck.position.y = 0.12;
+chest.add(neck);
+
+const headGroup = new THREE.Group();
+headGroup.position.y = 0.2;
+chest.add(headGroup);
+
+const head = mesh(new THREE.SphereGeometry(0.1, 16, 16), skinMat);
+headGroup.add(head);
+
+// Visor / Cap
+const visor = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.03, 16, 1, false, 0, Math.PI), shirtMat);
+visor.position.set(0, 0.04, 0.03);
+visor.rotation.x = -0.3;
+headGroup.add(visor);
+
+const capTop = mesh(new THREE.SphereGeometry(0.105, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), shirtMat);
+capTop.position.y = 0.04;
+headGroup.add(capTop);
+
+// Ponytail
+const ponytail = mesh(new THREE.CylinderGeometry(0.02, 0.035, 0.18, 8), hairMat);
+ponytail.position.set(0, -0.02, -0.1);
+ponytail.rotation.x = 0.5;
+headGroup.add(ponytail);
+
+const ponytailTip = mesh(new THREE.SphereGeometry(0.025, 8, 8), hairMat);
+ponytailTip.position.set(0, -0.1, -0.16);
+headGroup.add(ponytailTip);
+
+// ── Arms ──
+// Left arm (lead arm in golf)
+const lShoulderPivot = new THREE.Group();
+lShoulderPivot.position.set(-0.15, 0.05, 0);
+chest.add(lShoulderPivot);
+
+const lUpperArm = new THREE.Group();
+lShoulderPivot.add(lUpperArm);
+
+const lUpperArmMesh = mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.25, 8), shirtMat);
+lUpperArmMesh.position.y = -0.125;
+lUpperArm.add(lUpperArmMesh);
+
+const lElbow = new THREE.Group();
+lElbow.position.y = -0.25;
+lUpperArm.add(lElbow);
+
+const lForearm = new THREE.Group();
+lElbow.add(lForearm);
+
+const lForearmMesh = mesh(new THREE.CylinderGeometry(0.03, 0.025, 0.22, 8), skinMat);
+lForearmMesh.position.y = -0.11;
+lForearm.add(lForearmMesh);
+
+const lHand = mesh(new THREE.SphereGeometry(0.03, 8, 8), gloveMat);
+lHand.position.y = -0.23;
+lForearm.add(lHand);
+
+// Right arm (trail arm)
+const rShoulderPivot = new THREE.Group();
+rShoulderPivot.position.set(0.15, 0.05, 0);
+chest.add(rShoulderPivot);
+
+const rUpperArm = new THREE.Group();
+rShoulderPivot.add(rUpperArm);
+
+const rUpperArmMesh = mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.25, 8), shirtMat);
+rUpperArmMesh.position.y = -0.125;
+rUpperArm.add(rUpperArmMesh);
+
+const rElbow = new THREE.Group();
+rElbow.position.y = -0.25;
+rUpperArm.add(rElbow);
+
+const rForearm = new THREE.Group();
+rElbow.add(rForearm);
+
+const rForearmMesh = mesh(new THREE.CylinderGeometry(0.03, 0.025, 0.22, 8), skinMat);
+rForearmMesh.position.y = -0.11;
+rForearm.add(rForearmMesh);
+
+const rHand = mesh(new THREE.SphereGeometry(0.03, 8, 8), skinMat);
+rHand.position.y = -0.23;
+rForearm.add(rHand);
+
+// ── Golf Club (attached to left hand) ──
+const clubGroup = new THREE.Group();
+lHand.add(clubGroup);
+
+const shaft = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.9, 8), clubShaftMat);
+shaft.position.y = -0.45;
+clubGroup.add(shaft);
+
+const grip = mesh(new THREE.CylinderGeometry(0.012, 0.01, 0.25, 8), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }));
+grip.position.y = -0.02;
+clubGroup.add(grip);
+
+const clubHeadGeo = new THREE.BoxGeometry(0.1, 0.025, 0.06);
+const clubHead = mesh(clubHeadGeo, clubHeadMat);
+clubHead.position.set(0.03, -0.9, 0);
+clubGroup.add(clubHead);
+
+// ── Legs ──
+// Left leg
+const lHipPivot = new THREE.Group();
+lHipPivot.position.set(-0.08, -0.05, 0);
+pelvis.add(lHipPivot);
+
+const lUpperLeg = new THREE.Group();
+lHipPivot.add(lUpperLeg);
+
+const lUpperLegMesh = mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.35, 10), skirtMat);
+lUpperLegMesh.position.y = -0.175;
+lUpperLeg.add(lUpperLegMesh);
+
+const lKnee = new THREE.Group();
+lKnee.position.y = -0.35;
+lUpperLeg.add(lKnee);
+
+const lLowerLeg = new THREE.Group();
+lKnee.add(lLowerLeg);
+
+const lLowerLegMesh = mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.35, 8), skinMat);
+lLowerLegMesh.position.y = -0.175;
+lLowerLeg.add(lLowerLegMesh);
+
+const lFoot = mesh(new THREE.BoxGeometry(0.06, 0.04, 0.12), shoeMat);
+lFoot.position.set(0, -0.37, 0.02);
+lLowerLeg.add(lFoot);
+
+// Right leg
+const rHipPivot = new THREE.Group();
+rHipPivot.position.set(0.08, -0.05, 0);
+pelvis.add(rHipPivot);
+
+const rUpperLeg = new THREE.Group();
+rHipPivot.add(rUpperLeg);
+
+const rUpperLegMesh = mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.35, 10), skirtMat);
+rUpperLegMesh.position.y = -0.175;
+rUpperLeg.add(rUpperLegMesh);
+
+const rKnee = new THREE.Group();
+rKnee.position.y = -0.35;
+rUpperLeg.add(rKnee);
+
+const rLowerLeg = new THREE.Group();
+rKnee.add(rLowerLeg);
+
+const rLowerLegMesh = mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.35, 8), skinMat);
+rLowerLegMesh.position.y = -0.175;
+rLowerLeg.add(rLowerLegMesh);
+
+const rFoot = mesh(new THREE.BoxGeometry(0.06, 0.04, 0.12), shoeMat);
+rFoot.position.set(0, -0.37, 0.02);
+rLowerLeg.add(rFoot);
+
+// Skirt overlay
+const skirt = mesh(new THREE.CylinderGeometry(0.05, 0.18, 0.22, 12), skirtMat);
+skirt.position.y = -0.05;
+pelvis.add(skirt);
+
+// ── Animation Keyframes ──
+// Golf swing: right-handed golfer facing -Z (toward ball)
+// Y-rotation positive = turn right (backswing), negative = turn left (follow-through)
+//
+// JOINT LIMITS (human anatomy):
+//   Pelvis Y turn:    ±45° (±0.78)
+//   Spine Y turn:     ±30° additional on pelvis (±0.52)
+//   Forward bend:     0–30° (0–0.52)
+//   Side bend:        ±15° (±0.26)
+//   Shoulder X:       -180° to +60° (-3.14 to +1.05)
+//   Shoulder Z (abd): 0–180° (0–3.14)  
+//   Elbow flex:       0 to -145° (0 to -2.53), NEVER positive
+//   Knee flex:        0 to -140° (0 to -2.44), NEVER positive
+//   Wrist cock:       ±70° (±1.22)
+
+// shoulderX: NEGATIVE = arms reach FORWARD (toward ball)
+//            POSITIVE = arms go BACKWARD (away from ball, for backswing)
+
+const K = [
+  // ── 0: ADDRESS ── club behind ball on ground, eyes down
+  { t: 0.00,
+    pelY: 0.84, pelRY: 0.0,
+    spnRX: 0.28, spnRY: 0.0, spnRZ: 0.0,    // forward bend toward ball
+    chRY: 0.0,
+    hdRX: -0.30, hdRY: 0.0,                   // look down at ball
+    lsX: -0.35, lsZ: 0.12, leX: -0.12,       // arms FORWARD toward ball
+    rsX: -0.35, rsZ: -0.12, reX: -0.15,
+    lhX: 0.05, lkX: -0.20, rhX: 0.05, rkX: -0.20,
+    lfY: 0.0, rfY: 0.0,
+    wrX: 0.30 },                               // club angled to reach ground
+
+  // ── 1: TAKEAWAY ── club starts moving back, low and slow
+  { t: 0.15,
+    pelY: 0.84, pelRY: 0.10,
+    spnRX: 0.26, spnRY: 0.08, spnRZ: 0.02,
+    chRY: 0.15,
+    hdRX: -0.28, hdRY: 0.0,                   // head stays still
+    lsX: -0.15, lsZ: 0.15, leX: -0.10,       // arms moving back
+    rsX: -0.10, rsZ: -0.10, reX: -0.30,       // right elbow starting to fold
+    lhX: 0.05, lkX: -0.20, rhX: 0.05, rkX: -0.18,
+    lfY: 0.0, rfY: 0.0,
+    wrX: 0.10 },
+
+  // ── 2: HALFWAY BACK ── arms rising, wrists hinging
+  { t: 0.25,
+    pelY: 0.84, pelRY: 0.20,
+    spnRX: 0.22, spnRY: 0.15, spnRZ: 0.04,
+    chRY: 0.28,
+    hdRX: -0.25, hdRY: 0.0,
+    lsX: 0.10, lsZ: 0.20, leX: -0.08,        // left arm rising up
+    rsX: 0.15, rsZ: -0.08, reX: -0.65,        // right elbow folding
+    lhX: 0.05, lkX: -0.22, rhX: 0.06, rkX: -0.16,
+    lfY: 0.0, rfY: 0.0,
+    wrX: -0.25 },                              // wrists starting to cock
+
+  // ── 3: TOP OF BACKSWING ── max coil, club over right shoulder
+  { t: 0.38,
+    pelY: 0.83, pelRY: 0.32,                  // hips turn ~18°
+    spnRX: 0.18, spnRY: 0.25, spnRZ: 0.06,
+    chRY: 0.40,                                // shoulders ~23° more
+    hdRX: -0.22, hdRY: -0.05,                 // head barely moves
+    lsX: 0.50, lsZ: 0.28, leX: -0.05,        // left arm up and back, straight
+    rsX: 0.30, rsZ: -0.05, reX: -1.25,        // right elbow ~72° fold
+    lhX: 0.05, lkX: -0.24, rhX: 0.07, rkX: -0.20,
+    lfY: 0.04, rfY: 0.0,
+    wrX: -0.60 },                              // full wrist cock
+
+  // ── 4: TRANSITION ── hips fire, arms still up (lag)
+  { t: 0.48,
+    pelY: 0.83, pelRY: 0.10,                  // hips unwinding fast
+    spnRX: 0.22, spnRY: 0.20, spnRZ: 0.04,
+    chRY: 0.32,                                // shoulders still coiled
+    hdRX: -0.25, hdRY: -0.05,
+    lsX: 0.30, lsZ: 0.25, leX: -0.08,        // arms dropping
+    rsX: 0.15, rsZ: -0.08, reX: -1.10,        // right elbow still bent
+    lhX: 0.05, lkX: -0.22, rhX: 0.06, rkX: -0.20,
+    lfY: 0.02, rfY: 0.0,
+    wrX: -0.55 },                              // wrist lag maintained
+
+  // ── 5: DELIVERY ── arms dropping fast, lag releasing
+  { t: 0.55,
+    pelY: 0.84, pelRY: -0.12,                 // hips well open
+    spnRX: 0.25, spnRY: 0.05, spnRZ: 0.0,
+    chRY: 0.05,                                // shoulders catching up
+    hdRX: -0.28, hdRY: -0.08,
+    lsX: -0.05, lsZ: 0.15, leX: -0.10,       // arms dropping to ball
+    rsX: -0.05, rsZ: -0.10, reX: -0.50,       // right elbow straightening
+    lhX: 0.05, lkX: -0.18, rhX: 0.05, rkX: -0.22,
+    lfY: -0.03, rfY: 0.08,
+    wrX: -0.20 },                              // wrists releasing
+
+  // ── 6: IMPACT ── club meets ball, arms extended down to ball
+  { t: 0.62,
+    pelY: 0.85, pelRY: -0.25,                 // hips open ~14°
+    spnRX: 0.25, spnRY: -0.05, spnRZ: -0.02,
+    chRY: -0.08,
+    hdRX: -0.30, hdRY: -0.10,                 // eyes on ball
+    lsX: -0.35, lsZ: 0.12, leX: -0.08,       // arms extended FORWARD (like address)
+    rsX: -0.35, rsZ: -0.12, reX: -0.12,       // both arms nearly straight
+    lhX: 0.04, lkX: -0.14, rhX: 0.06, rkX: -0.24,
+    lfY: -0.05, rfY: 0.10,
+    wrX: 0.05 },                               // wrists fully released
+
+  // ── 7: POST-IMPACT ── arms extend through, body rotating
+  { t: 0.72,
+    pelY: 0.85, pelRY: -0.40,
+    spnRX: 0.18, spnRY: -0.15, spnRZ: -0.04,
+    chRY: -0.22,
+    hdRX: -0.20, hdRY: -0.18,                 // head releasing to watch ball
+    lsX: -0.20, lsZ: 0.10, leX: -0.10,       // arms extending through
+    rsX: -0.25, rsZ: -0.08, reX: -0.12,
+    lhX: 0.02, lkX: -0.10, rhX: 0.08, rkX: -0.30,
+    lfY: -0.08, rfY: 0.20,
+    wrX: 0.25 },
+
+  // ── 8: FOLLOW-THROUGH ── arms rising on target side
+  { t: 0.82,
+    pelY: 0.86, pelRY: -0.55,
+    spnRX: 0.08, spnRY: -0.28, spnRZ: -0.05,
+    chRY: -0.38,
+    hdRX: -0.12, hdRY: -0.25,                 // watching ball flight
+    lsX: 0.15, lsZ: 0.08, leX: -0.45,        // arms rising, left folding
+    rsX: 0.05, rsZ: -0.05, reX: -0.30,
+    lhX: 0.0, lkX: -0.05, rhX: 0.10, rkX: -0.35,
+    lfY: -0.12, rfY: 0.35,
+    wrX: 0.35 },
+
+  // ── 9: FINISH ── balanced, belt buckle to target, club over shoulder
+  { t: 0.92,
+    pelY: 0.87, pelRY: -0.68,
+    spnRX: 0.0, spnRY: -0.33, spnRZ: -0.04,
+    chRY: -0.42,
+    hdRX: -0.05, hdRY: -0.30,                 // watching ball in air
+    lsX: 0.45, lsZ: -0.05, leX: -0.85,       // club wrapped behind shoulder
+    rsX: 0.20, rsZ: 0.05, reX: -0.50,
+    lhX: -0.02, lkX: -0.03, rhX: 0.14, rkX: -0.40,
+    lfY: -0.15, rfY: 0.50,
+    wrX: 0.30 },
+
+  // ── 10: HOLD FINISH ──
+  { t: 1.00,
+    pelY: 0.87, pelRY: -0.68,
+    spnRX: 0.0, spnRY: -0.33, spnRZ: -0.04,
+    chRY: -0.42,
+    hdRX: -0.05, hdRY: -0.30,
+    lsX: 0.45, lsZ: -0.05, leX: -0.85,
+    rsX: 0.20, rsZ: 0.05, reX: -0.50,
+    lhX: -0.02, lkX: -0.03, rhX: 0.14, rkX: -0.40,
+    lfY: -0.15, rfY: 0.50,
+    wrX: 0.30 },
+];
+
+// ── Interpolation ──
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function smoothstep(t) {
+  return t * t * (3 - 2 * t);
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function getInterpolated(t) {
+  let k0 = K[0], k1 = K[1];
+  for (let i = 0; i < K.length - 1; i++) {
+    if (t >= K[i].t && t <= K[i + 1].t) {
+      k0 = K[i];
+      k1 = K[i + 1];
+      break;
+    }
+  }
+
+  const seg = (t - k0.t) / (k1.t - k0.t || 1);
+
+  // Downswing segments get acceleration easing (fast through impact)
+  const isDownswing = k0.t >= 0.38 && k1.t <= 0.72;
+  const e = isDownswing ? (seg * seg) : smoothstep(seg);
+
+  const result = {};
+  for (const key in k0) {
+    if (key === 't') continue;
+    result[key] = lerp(k0[key], k1[key], e);
+  }
+  return result;
+}
+
+// ── Apply Pose ──
+function applyPose(p) {
+  pelvis.position.y = p.pelY;
+  pelvis.rotation.y = p.pelRY;
+
+  spine.rotation.x = p.spnRX;
+  spine.rotation.y = p.spnRY;
+  spine.rotation.z = p.spnRZ;
+
+  chest.rotation.y = p.chRY;
+
+  headGroup.rotation.x = p.hdRX;
+  headGroup.rotation.y = p.hdRY;
+
+  lShoulderPivot.rotation.x = p.lsX;
+  lShoulderPivot.rotation.z = p.lsZ;
+  lElbow.rotation.x = p.leX;
+
+  rShoulderPivot.rotation.x = p.rsX;
+  rShoulderPivot.rotation.z = p.rsZ;
+  rElbow.rotation.x = p.reX;
+
+  lHipPivot.rotation.x = p.lhX;
+  lKnee.rotation.x = p.lkX;
+  rHipPivot.rotation.x = p.rhX;
+  rKnee.rotation.x = p.rkX;
+
+  lFoot.rotation.y = p.lfY;
+  rFoot.rotation.y = p.rfY;
+
+  // Wrist rotation drives club angle naturally
+  clubGroup.rotation.x = p.wrX;
+}
+
+// ── Ball flight animation ──
+let ballFlying = false;
+let ballFlyStart = 0;
+const ballFlyDuration = 1.2;
+
+function updateBallFlight(elapsed) {
+  if (!ballFlying) return;
+  const bt = (elapsed - ballFlyStart) / ballFlyDuration;
+  if (bt > 1) {
+    flyBall.visible = false;
+    ballFlying = false;
+    return;
+  }
+  // Parabolic arc flying forward-left and up
+  flyBall.visible = true;
+  flyBall.position.set(
+    -bt * 8,
+    0.06 + bt * 4 * (1 - bt) * 3,
+    -bt * 2
+  );
+  // Shrink as it flies away
+  const s = Math.max(0.3, 1 - bt * 0.7);
+  flyBall.scale.setScalar(s);
+}
+
+// ── Main Loop ──
+const CYCLE_DURATION = 3.0; // seconds per full swing
+const PAUSE_AT_START = 1.0; // seconds pause at address
+const PAUSE_AT_END = 1.2; // seconds pause at finish
+const TOTAL_CYCLE = PAUSE_AT_START + CYCLE_DURATION + PAUSE_AT_END;
+
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  elapsed += delta;
+
+  const cycleTime = elapsed % TOTAL_CYCLE;
+  let t;
+
+  if (cycleTime < PAUSE_AT_START) {
+    // Pause at address
+    t = 0;
+    ball.visible = true;
+  } else if (cycleTime < PAUSE_AT_START + CYCLE_DURATION) {
+    // Swing
+    t = (cycleTime - PAUSE_AT_START) / CYCLE_DURATION;
+
+    // Ball disappears at impact (keyframe 6 = t:0.62)
+    if (t > 0.62) {
+      ball.visible = false;
+      if (!ballFlying) {
+        ballFlying = true;
+        ballFlyStart = elapsed;
+      }
+    } else {
+      ball.visible = true;
+    }
+  } else {
+    // Pause at finish
+    t = 1.0;
+    ball.visible = false;
+  }
+
+  // Reset ball flight on new cycle
+  const prevCycle = (elapsed - delta) % TOTAL_CYCLE;
+  if (prevCycle > cycleTime) {
+    ballFlying = false;
+    flyBall.visible = false;
+    ball.visible = true;
+  }
+
+  const pose = getInterpolated(Math.min(t, 1));
+  applyPose(pose);
+
+  updateBallFlight(elapsed);
+
+  // Ponytail follows head rotation with delay
+  const ponytailBase = 0.5;
+  const swingMomentum = (t > 0.5 && t < 0.8) ? Math.sin((t - 0.5) * 10) * 0.12 : 0;
+  ponytail.rotation.x = ponytailBase + swingMomentum;
+  ponytail.rotation.y = (pelvis.rotation.y + (chest.rotation.y || 0)) * -0.3;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

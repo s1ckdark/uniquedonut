@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Playground</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            user-select: none;
+            -webkit-user-select: none;
+            overflow: hidden;
+            min-height: 100vh;
+        }
+
+        #playground {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 20px 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            z-index: 1000;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .controls h3 {
+            color: #fff;
+            margin-bottom: 16px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.8;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .control-row:last-child { margin-bottom: 0; }
+
+        .control-row label {
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 10px;
+        }
+
+        .control-row input[type="range"] {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .control-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #4285f4;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.5);
+        }
+
+        .control-row input[type="number"] {
+            width: 50px;
+            padding: 4px 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .action-btn:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            border-color: transparent;
+        }
+
+        .action-btn.primary:hover {
+            box-shadow: 0 4px 16px rgba(66, 133, 244, 0.4);
+        }
+
+        .hint {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 13px;
+            z-index: 1000;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: opacity 0.3s;
+        }
+
+        .stats {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .stats span {
+            color: #4285f4;
+        }
+    </style>
+</head>
+<body>
+    <div id="playground"></div>
+
+    <div class="controls">
+        <h3>⚙ Controls</h3>
+        <div class="control-row">
+            <label>Gravity</label>
+            <input type="range" id="ctrl-gravity" min="0" max="3" step="0.1" value="1">
+        </div>
+        <div class="control-row">
+            <label>Bounce</label>
+            <input type="range" id="ctrl-restitution" min="0" max="1" step="0.1" value="0.7">
+        </div>
+        <div class="control-row">
+            <label>Blocks</label>
+            <input type="range" id="ctrl-blocks" min="10" max="200" value="50">
+            <span id="blocks-value" style="color: #4285f4; min-width: 30px; text-align: right;">50</span>
+        </div>
+        <div class="control-row">
+            <label>Friction</label>
+            <input type="range" id="ctrl-friction" min="0" max="1" step="0.05" value="0.1">
+            <span id="friction-value" style="color: #4285f4; min-width: 30px; text-align: right;">0.1</span>
+        </div>
+        <div class="action-btns">
+            <button class="action-btn primary" id="btn-explode">Explode</button>
+            <button class="action-btn" id="btn-reset">Reset</button>
+        </div>
+    </div>
+
+    <div class="hint">🖱️ Drag and throw the blocks!</div>
+    <div class="stats">Blocks: <span id="block-count">0</span></div>
+
+    <style>
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            text-decoration: none;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 13px;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.5);
+        }
+    </style>
+    <a href="../index.html" class="back-btn">← Back to List</a>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="../modules/antigravity.js"></script>
+    <script>
+        const playground = document.getElementById('playground');
+        const blockCountEl = document.getElementById('block-count');
+        const blocksSlider = document.getElementById('ctrl-blocks');
+        const blocksValue = document.getElementById('blocks-value');
+        const frictionSlider = document.getElementById('ctrl-friction');
+        const frictionValue = document.getElementById('friction-value');
+        let ag = null;
+
+        function initPhysics() {
+            const blockCount = parseInt(blocksSlider.value) || 50;
+            
+            ag = new window.Antigravity({
+                container: '#playground',
+                gravity: 1,
+                restitution: 0.7,
+                friction: 0.1,
+                additionalBodies: blockCount,
+                elements: []
+            });
+            ag.init();
+            
+            blockCountEl.textContent = blockCount;
+            
+            setTimeout(() => {
+                const hint = document.querySelector('.hint');
+                if (hint) {
+                    hint.style.opacity = '0';
+                    setTimeout(() => {
+                        hint.style.display = 'none';
+                    }, 300);
+                }
+            }, 3000);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(initPhysics, 100);
+        });
+
+        document.getElementById('ctrl-gravity').addEventListener('input', e => {
+            if (ag) ag.setGravity(Number(e.target.value));
+        });
+
+        document.getElementById('ctrl-restitution').addEventListener('input', e => {
+            if (ag) ag.restitution = Number(e.target.value);
+        });
+
+        frictionSlider.addEventListener('input', e => {
+            const val = Number(e.target.value);
+            frictionValue.textContent = val.toFixed(2);
+            if (ag) ag.setFriction(val);
+        });
+
+        blocksSlider.addEventListener('input', e => {
+            const val = parseInt(e.target.value);
+            blocksValue.textContent = val;
+            blockCountEl.textContent = val;
+            if (ag) ag.setBlockCount(val);
+        });
+
+        document.getElementById('btn-explode').addEventListener('click', () => {
+            if (ag) ag.explode();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (ag) ag.reset();
+        });
+    </script>
+</body>
+</html>

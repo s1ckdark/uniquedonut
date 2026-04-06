@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrontGen - Antigravity Trail</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            background: #fff;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        h1 {
+            font-weight: 300;
+            color: #5f6368;
+            margin: 0;
+            font-size: 24px;
+        }
+        p {
+            color: #80868b;
+            margin: 5px 0 0 0;
+            font-size: 14px;
+        }
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            text-decoration: none;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            transition: all 0.2s;
+            pointer-events: auto;
+        }
+        .back-btn:hover {
+            background: #f1f3f4;
+            color: #202124;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(255,255,255,0.95);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 12px;
+            pointer-events: auto;
+        }
+        .controls h3 {
+            color: #5f6368;
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+        .control-row label {
+            color: #80868b;
+            font-size: 11px;
+            min-width: 80px;
+        }
+        .control-row input[type="range"] {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #dadce0;
+            border-radius: 4px;
+            outline: none;
+        }
+        .control-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #4285f4;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(66, 133, 244, 0.4);
+        }
+        .control-row .value {
+            color: #4285f4;
+            font-weight: 500;
+            min-width: 40px;
+            text-align: right;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div id="ui">
+        <h1>Antigravity Trail</h1>
+        <p>Move your mouse to disturb the particles.</p>
+    </div>
+
+    <a href="../index.html" class="back-btn">Back to List</a>
+
+    <div class="controls">
+        <h3>Controls</h3>
+        <div class="control-row">
+            <label>Repel Radius</label>
+            <input type="range" id="ctrl-radius" min="50" max="400" value="200">
+            <span class="value" id="val-radius">200</span>
+        </div>
+        <div class="control-row">
+            <label>Repel Force</label>
+            <input type="range" id="ctrl-force" min="0.5" max="5" step="0.1" value="2.5">
+            <span class="value" id="val-force">2.5</span>
+        </div>
+        <div class="control-row">
+            <label>Return Speed</label>
+            <input type="range" id="ctrl-return" min="0.01" max="0.2" step="0.01" value="0.08">
+            <span class="value" id="val-return">0.08</span>
+        </div>
+        <div class="control-row">
+            <label>Damping</label>
+            <input type="range" id="ctrl-damping" min="0.8" max="0.99" step="0.01" value="0.92">
+            <span class="value" id="val-damping">0.92</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import { AntigravityTrail } from '../modules/antigravity-trail.js';
+
+        let trail = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            trail = new AntigravityTrail({
+                container: '#container',
+                particleCount: 4000,
+                repulsionRadius: 200,
+                repulsionForce: 2.5,
+                returnSpeed: 0.08,
+                damping: 0.92,
+                colors: [
+                    0x4285f4,
+                    0xea4335,
+                    0xfbbc05,
+                    0x34a853,
+                    0x5f6368
+                ]
+            });
+            
+            trail.init();
+        });
+
+        document.getElementById('ctrl-radius').addEventListener('input', e => {
+            const val = Number(e.target.value);
+            document.getElementById('val-radius').textContent = val;
+            if (trail) trail.setParams({ repulsionRadius: val });
+        });
+
+        document.getElementById('ctrl-force').addEventListener('input', e => {
+            const val = Number(e.target.value);
+            document.getElementById('val-force').textContent = val.toFixed(1);
+            if (trail) trail.setParams({ repulsionForce: val });
+        });
+
+        document.getElementById('ctrl-return').addEventListener('input', e => {
+            const val = Number(e.target.value);
+            document.getElementById('val-return').textContent = val.toFixed(2);
+            if (trail) trail.setParams({ returnSpeed: val });
+        });
+
+        document.getElementById('ctrl-damping').addEventListener('input', e => {
+            const val = Number(e.target.value);
+            document.getElementById('val-damping').textContent = val.toFixed(2);
+            if (trail) trail.setParams({ damping: val });
+        });
+    </script>
+</body>
+</html>

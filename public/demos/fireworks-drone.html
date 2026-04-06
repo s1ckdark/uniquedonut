@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone View: Fireworks</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #050514;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(10, 10, 30, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            min-width: 200px;
+            z-index: 100;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .control-row:last-child { margin-bottom: 0; }
+        label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.7);
+        }
+        input[type="range"] {
+            width: 100px;
+            accent-color: #ffcc00;
+        }
+        .title-label {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.5);
+            z-index: 100;
+            pointer-events: none;
+        }
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            text-decoration: none;
+            color: rgba(255,255,255,0.6);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="title-label">Drone Cam: Fireworks</div>
+    <a href="../index.html" class="back-btn">← Back</a>
+    
+    <div id="canvas-container"></div>
+
+    <div class="controls">
+        <div class="control-row">
+            <label>Speed</label>
+            <input type="range" id="speed" min="0" max="20" value="5" step="0.5">
+        </div>
+        <div class="control-row">
+            <label>Intensity</label>
+            <input type="range" id="intensity" min="0.01" max="0.2" value="0.05" step="0.01">
+        </div>
+        <div class="control-row">
+            <label>Chaos</label>
+            <input type="range" id="chaos" min="0" max="2" value="0.5" step="0.1">
+        </div>
+        <div class="control-row">
+            <label>Density</label>
+            <input type="range" id="density" min="0.5" max="3.0" value="1.0" step="0.1">
+        </div>
+        <div class="control-row">
+            <label>Size</label>
+            <input type="range" id="size" min="0.3" max="2.0" value="1.0" step="0.1">
+        </div>
+        <div class="control-row">
+            <label>Glow</label>
+            <input type="range" id="glow" min="0" max="1" value="0.3" step="0.05">
+        </div>
+        <div class="control-row">
+            <label>Flash</label>
+            <input type="range" id="flash" min="0" max="2" value="1" step="0.1">
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script type="module">
+        import FireworksDrone from '../modules/fireworks-drone.js';
+
+        const app = new FireworksDrone({
+            container: '#canvas-container',
+            speed: 5,
+            intensity: 0.05,
+            chaos: 0.5
+        });
+
+        // Bind controls
+        const speedInput = document.getElementById('speed');
+        const intensityInput = document.getElementById('intensity');
+        const chaosInput = document.getElementById('chaos');
+        const densityInput = document.getElementById('density');
+        const sizeInput = document.getElementById('size');
+        const glowInput = document.getElementById('glow');
+        const flashInput = document.getElementById('flash');
+
+        function update() {
+            app.updateSettings({
+                speed: parseFloat(speedInput.value),
+                intensity: parseFloat(intensityInput.value),
+                chaos: parseFloat(chaosInput.value),
+                particleDensity: parseFloat(densityInput.value),
+                particleSize: parseFloat(sizeInput.value),
+                glowIntensity: parseFloat(glowInput.value),
+                flashIntensity: parseFloat(flashInput.value)
+            });
+        }
+
+        speedInput.addEventListener('input', update);
+        intensityInput.addEventListener('input', update);
+        chaosInput.addEventListener('input', update);
+        densityInput.addEventListener('input', update);
+        sizeInput.addEventListener('input', update);
+        glowInput.addEventListener('input', update);
+        flashInput.addEventListener('input', update);
+        
+        // Mouse influence
+        document.addEventListener('mousemove', (e) => {
+            app.updateMouse(e.clientX, e.clientY);
+        });
+    </script>
+</body>
+</html>

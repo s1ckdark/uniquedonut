@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blur Zoom Clock</title>
+    <style>
+        :root {
+            --clock-width: 50vw;
+            --clock-height: calc(var(--clock-width) * 0.625);
+            --font-size: calc(var(--clock-width) * 0.18);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .clock-container {
+            width: var(--clock-width);
+            height: var(--clock-height);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .time-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: var(--font-size);
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.95);
+            white-space: nowrap;
+            text-align: center;
+            pointer-events: none;
+            will-change: transform, opacity;
+            letter-spacing: 0.05em;
+            text-shadow: 0 4px 20px rgba(255,255,255,0.3);
+        }
+
+        .explode-out {
+            animation: explodeOut 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes explodeOut {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+                filter: blur(0px);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(2);
+                opacity: 0;
+                filter: blur(10px);
+            }
+        }
+
+        @keyframes fadeIn {
+            0% {
+                transform: translate(-50%, -50%) scale(0.9);
+                opacity: 0;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            text-decoration: none;
+            color: rgba(255,255,255,0.8);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.05);
+        }
+        .back-btn:hover {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <a href="../index.html" class="back-btn">← Back to List</a>
+
+    <div class="clock-container" id="clockContainer">
+    </div>
+
+    <script>
+        const container = document.getElementById('clockContainer');
+        let lastTimeStr = "";
+
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const timeStr = `${h}:${m}:${s}`;
+
+            if (timeStr !== lastTimeStr) {
+                const existing = container.querySelector('.current');
+                if (existing) {
+                    existing.classList.remove('current');
+                    existing.classList.remove('fade-in');
+                    existing.classList.add('explode-out');
+                    
+                    setTimeout(() => {
+                        if (existing.parentNode) {
+                            existing.parentNode.removeChild(existing);
+                        }
+                    }, 1000);
+                }
+
+                const newTimeEl = document.createElement('div');
+                newTimeEl.classList.add('time-layer', 'current', 'fade-in');
+                newTimeEl.textContent = timeStr;
+                
+                container.appendChild(newTimeEl);
+
+                lastTimeStr = timeStr;
+            }
+
+            requestAnimationFrame(updateClock);
+        }
+
+        requestAnimationFrame(updateClock);
+    </script>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to 3D - Depth Reconstruction</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: 'Segoe UI', sans-serif;
+            color: #fff;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            z-index: 100;
+            min-width: 240px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .controls h3 {
+            font-size: 14px;
+            color: #00ffcc;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 16px;
+        }
+        
+        .upload-zone:hover {
+            border-color: #00ffcc;
+            background: rgba(0,255,204,0.05);
+        }
+        
+        .upload-zone.dragover {
+            border-color: #00ffcc;
+            background: rgba(0,255,204,0.1);
+        }
+        
+        .upload-zone p {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+        }
+        
+        .upload-zone .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        
+        #fileInput { display: none; }
+        
+        .mode-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: transparent;
+            color: rgba(255,255,255,0.6);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+        
+        .mode-btn.active {
+            background: rgba(0,255,204,0.2);
+            border-color: #00ffcc;
+            color: #00ffcc;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        
+        .control-row label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+        }
+        
+        .control-row input[type="range"] {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+        
+        .control-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00ffcc;
+            cursor: pointer;
+        }
+        
+        .control-row select {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .preview-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        
+        .preview-box {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .preview-box img, .preview-box canvas {
+            max-width: 100%;
+            height: 60px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        
+        .preview-box span {
+            display: block;
+            font-size: 10px;
+            color: rgba(255,255,255,0.5);
+            margin-top: 4px;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            text-decoration: none;
+            color: rgba(255,255,255,0.7);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .back-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        
+        .info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            z-index: 100;
+        }
+        
+        .info span { color: #00ffcc; }
+        
+        .hint {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            z-index: 100;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+        
+        .loading-overlay.active { display: flex; }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00ffcc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .sample-images {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .sample-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            object-fit: cover;
+        }
+        
+        .sample-img:hover {
+            border-color: #00ffcc;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <a href="../index.html" class="back-btn">← Back to List</a>
+    
+    <div class="controls">
+        <h3>🖼️ Image to 3D</h3>
+        
+        <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="heightmap">Height Map</button>
+            <button class="mode-btn" data-mode="ai">AI Depth</button>
+        </div>
+        
+        <div class="upload-zone" id="uploadZone">
+            <div class="icon">📁</div>
+            <p>Click or drag image here</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*">
+        
+        <div class="sample-images">
+            <img class="sample-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23222222' width='40' height='40'/%3E%3Ccircle fill='%23444' cx='20' cy='15' r='10'/%3E%3Crect fill='%23666' x='10' y='25' width='20' height='12'/%3E%3C/svg%3E" data-type="circle">
+            <img class="sample-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23111' width='40' height='40'/%3E%3Crect fill='%23333' x='5' y='5' width='30' height='30' rx='2'/%3E%3Crect fill='%23555' x='10' y='10' width='20' height='20' rx='2'/%3E%3C/svg%3E" data-type="squares">
+            <img class="sample-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23333'/%3E%3Cstop offset='100%25' stop-color='%23fff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='40' height='40'/%3E%3C/svg%3E" data-type="gradient">
+            <img class="sample-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23000' width='40' height='40'/%3E%3Ctext x='20' y='28' font-size='20' fill='%23fff' text-anchor='middle'%3E3D%3C/text%3E%3C/svg%3E" data-type="text">
+        </div>
+        
+        <div class="control-row">
+            <label>Height Scale</label>
+            <input type="range" id="heightScale" min="5" max="100" value="30">
+        </div>
+        <div class="control-row">
+            <label>Resolution</label>
+            <input type="range" id="resolution" min="32" max="256" value="128" step="32">
+        </div>
+        <div class="control-row">
+            <label>Color Theme</label>
+            <select id="colorTheme">
+                <option value="original">Original</option>
+                <option value="earth">Earth</option>
+                <option value="ocean">Ocean</option>
+                <option value="neon">Neon</option>
+                <option value="grayscale">Grayscale</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label>Wireframe</label>
+            <input type="checkbox" id="wireframe">
+        </div>
+        
+        <div class="preview-row" id="previewRow" style="display:none;">
+            <div class="preview-box">
+                <img id="originalPreview" alt="Original">
+                <span>Original</span>
+            </div>
+            <div class="preview-box">
+                <canvas id="depthPreview" width="80" height="60"></canvas>
+                <span>Depth Map</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="info">
+        Mode: <span id="currentMode">Height Map</span> | 
+        Vertices: <span id="vertexCount">0</span> |
+        FPS: <span id="fps">0</span>
+    </div>
+    
+    <div class="hint">
+        🖱️ Drag: Rotate | Scroll: Zoom
+    </div>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Processing...</div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const container = document.getElementById('canvas-container');
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0f);
+        scene.fog = new THREE.Fog(0x0a0a0f, 50, 200);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 40, 60);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI * 0.45;
+        
+        const ambientLight = new THREE.AmbientLight(0x404050, 0.6);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(30, 50, 30);
+        scene.add(directionalLight);
+        
+        const pointLight = new THREE.PointLight(0x00ffcc, 0.5, 100);
+        pointLight.position.set(-20, 30, -20);
+        scene.add(pointLight);
+
+        let terrain = null;
+        let currentMode = 'heightmap';
+        let currentImageData = null;
+        let depthData = null;
+        
+        const params = {
+            heightScale: 30,
+            resolution: 128,
+            colorTheme: 'original',
+            wireframe: false
+        };
+
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        function loadImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadImageFromUrl(url) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = url;
+            });
+        }
+
+        function extractImageData(img, resolution) {
+            const canvas = document.createElement('canvas');
+            canvas.width = resolution;
+            canvas.height = resolution;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, resolution, resolution);
+            return ctx.getImageData(0, 0, resolution, resolution);
+        }
+
+        function generateHeightMapDepth(imageData) {
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+            const depth = new Float32Array(width * height);
+            
+            for (let i = 0; i < width * height; i++) {
+                const r = data[i * 4];
+                const g = data[i * 4 + 1];
+                const b = data[i * 4 + 2];
+                depth[i] = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+            }
+            
+            return { depth, width, height, imageData };
+        }
+
+        async function generateAIDepth(imageData, originalImg) {
+            showLoading('Loading AI model...');
+            
+            try {
+                const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1');
+                
+                showLoading('Initializing depth estimation...');
+                const depthEstimator = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf');
+                
+                showLoading('Estimating depth...');
+                const result = await depthEstimator(originalImg.src);
+                
+                const depthCanvas = document.createElement('canvas');
+                const depthImg = result.depth;
+                depthCanvas.width = params.resolution;
+                depthCanvas.height = params.resolution;
+                const ctx = depthCanvas.getContext('2d');
+                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = depthImg.width;
+                tempCanvas.height = depthImg.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                const imgData = tempCtx.createImageData(depthImg.width, depthImg.height);
+                for (let i = 0; i < depthImg.data.length; i++) {
+                    const val = depthImg.data[i];
+                    imgData.data[i * 4] = val;
+                    imgData.data[i * 4 + 1] = val;
+                    imgData.data[i * 4 + 2] = val;
+                    imgData.data[i * 4 + 3] = 255;
+                }
+                tempCtx.putImageData(imgData, 0, 0);
+                
+                ctx.drawImage(tempCanvas, 0, 0, params.resolution, params.resolution);
+                const resizedData = ctx.getImageData(0, 0, params.resolution, params.resolution);
+                
+                const depth = new Float32Array(params.resolution * params.resolution);
+                for (let i = 0; i < depth.length; i++) {
+                    depth[i] = resizedData.data[i * 4] / 255;
+                }
+                
+                return { depth, width: params.resolution, height: params.resolution, imageData: resizedData };
+            } catch (error) {
+                console.error('AI depth estimation failed:', error);
+                alert('AI Depth estimation failed. Falling back to Height Map mode.');
+                currentMode = 'heightmap';
+                updateModeButtons();
+                return generateHeightMapDepth(imageData);
+            }
+        }
+
+        function updateDepthPreview(depthResult) {
+            const canvas = document.getElementById('depthPreview');
+            const ctx = canvas.getContext('2d');
+            
+            const displayCanvas = document.createElement('canvas');
+            displayCanvas.width = depthResult.width;
+            displayCanvas.height = depthResult.height;
+            const displayCtx = displayCanvas.getContext('2d');
+            
+            const imgData = displayCtx.createImageData(depthResult.width, depthResult.height);
+            for (let i = 0; i < depthResult.depth.length; i++) {
+                const val = Math.floor(depthResult.depth[i] * 255);
+                imgData.data[i * 4] = val;
+                imgData.data[i * 4 + 1] = val;
+                imgData.data[i * 4 + 2] = val;
+                imgData.data[i * 4 + 3] = 255;
+            }
+            displayCtx.putImageData(imgData, 0, 0);
+            
+            ctx.drawImage(displayCanvas, 0, 0, 80, 60);
+        }
+
+        const colorThemes = {
+            original: null,
+            earth: [
+                { stop: 0.0, color: new THREE.Color(0x1a5f1a) },
+                { stop: 0.3, color: new THREE.Color(0x8b7355) },
+                { stop: 0.6, color: new THREE.Color(0x8b8989) },
+                { stop: 1.0, color: new THREE.Color(0xffffff) }
+            ],
+            ocean: [
+                { stop: 0.0, color: new THREE.Color(0x001a33) },
+                { stop: 0.3, color: new THREE.Color(0x0066cc) },
+                { stop: 0.6, color: new THREE.Color(0x00ccff) },
+                { stop: 1.0, color: new THREE.Color(0xffffff) }
+            ],
+            neon: [
+                { stop: 0.0, color: new THREE.Color(0x000033) },
+                { stop: 0.3, color: new THREE.Color(0x9900ff) },
+                { stop: 0.6, color: new THREE.Color(0xff00ff) },
+                { stop: 1.0, color: new THREE.Color(0x00ffff) }
+            ],
+            grayscale: [
+                { stop: 0.0, color: new THREE.Color(0x1a1a1a) },
+                { stop: 0.5, color: new THREE.Color(0x808080) },
+                { stop: 1.0, color: new THREE.Color(0xffffff) }
+            ]
+        };
+
+        function getColorFromTheme(normalizedHeight, originalColor) {
+            if (params.colorTheme === 'original') {
+                return originalColor;
+            }
+            
+            const theme = colorThemes[params.colorTheme];
+            if (!theme) return originalColor;
+            
+            for (let i = 0; i < theme.length - 1; i++) {
+                if (normalizedHeight >= theme[i].stop && normalizedHeight <= theme[i + 1].stop) {
+                    const t = (normalizedHeight - theme[i].stop) / (theme[i + 1].stop - theme[i].stop);
+                    return theme[i].color.clone().lerp(theme[i + 1].color, t);
+                }
+            }
+            
+            return theme[theme.length - 1].color.clone();
+        }
+
+        function generateTerrain(depthResult) {
+            if (terrain) {
+                scene.remove(terrain);
+                terrain.geometry.dispose();
+                terrain.material.dispose();
+            }
+
+            const { depth, width, height, imageData } = depthResult;
+            const geometry = new THREE.PlaneGeometry(60, 60, width - 1, height - 1);
+            
+            const positions = geometry.attributes.position.array;
+            const colors = new Float32Array(positions.length);
+            
+            const originalData = currentImageData ? currentImageData.data : null;
+            
+            let minDepth = Infinity, maxDepth = -Infinity;
+            for (let i = 0; i < depth.length; i++) {
+                minDepth = Math.min(minDepth, depth[i]);
+                maxDepth = Math.max(maxDepth, depth[i]);
+            }
+            
+            for (let i = 0; i < positions.length / 3; i++) {
+                const x = positions[i * 3];
+                const y = positions[i * 3 + 1];
+                
+                const ix = Math.floor((x + 30) / 60 * width);
+                const iy = Math.floor((30 - y) / 60 * height);
+                const idx = Math.min(iy * width + ix, depth.length - 1);
+                
+                const normalizedDepth = maxDepth > minDepth ? 
+                    (depth[idx] - minDepth) / (maxDepth - minDepth) : 0;
+                
+                positions[i * 3 + 2] = normalizedDepth * params.heightScale;
+                
+                let color;
+                if (originalData && params.colorTheme === 'original') {
+                    const pixelIdx = idx * 4;
+                    color = new THREE.Color(
+                        originalData[pixelIdx] / 255,
+                        originalData[pixelIdx + 1] / 255,
+                        originalData[pixelIdx + 2] / 255
+                    );
+                } else {
+                    color = getColorFromTheme(normalizedDepth, new THREE.Color(0.5, 0.5, 0.5));
+                }
+                
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
+            
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.computeVertexNormals();
+            
+            const material = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                wireframe: params.wireframe,
+                flatShading: true,
+                side: THREE.DoubleSide,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            
+            terrain = new THREE.Mesh(geometry, material);
+            terrain.rotation.x = -Math.PI / 2;
+            scene.add(terrain);
+            
+            document.getElementById('vertexCount').textContent = (positions.length / 3).toLocaleString();
+        }
+
+        async function processImage(img) {
+            showLoading('Processing image...');
+            
+            document.getElementById('originalPreview').src = img.src;
+            document.getElementById('previewRow').style.display = 'flex';
+            
+            currentImageData = extractImageData(img, params.resolution);
+            
+            if (currentMode === 'ai') {
+                depthData = await generateAIDepth(currentImageData, img);
+            } else {
+                depthData = generateHeightMapDepth(currentImageData);
+            }
+            
+            updateDepthPreview(depthData);
+            generateTerrain(depthData);
+            
+            hideLoading();
+        }
+
+        function updateModeButtons() {
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === currentMode);
+            });
+            document.getElementById('currentMode').textContent = 
+                currentMode === 'ai' ? 'AI Depth' : 'Height Map';
+        }
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                currentMode = btn.dataset.mode;
+                updateModeButtons();
+                
+                if (currentImageData) {
+                    if (currentMode === 'ai') {
+                        const img = new Image();
+                        img.src = document.getElementById('originalPreview').src;
+                        await processImage(img);
+                    } else {
+                        depthData = generateHeightMapDepth(currentImageData);
+                        updateDepthPreview(depthData);
+                        generateTerrain(depthData);
+                    }
+                }
+            });
+        });
+
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const img = await loadImage(file);
+                await processImage(img);
+            }
+        });
+        
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const img = await loadImage(file);
+                await processImage(img);
+            }
+        });
+
+        document.querySelectorAll('.sample-img').forEach(img => {
+            img.addEventListener('click', async () => {
+                const type = img.dataset.type;
+                const svgUrl = img.src;
+                const loadedImg = await loadImageFromUrl(svgUrl);
+                await processImage(loadedImg);
+            });
+        });
+
+        document.getElementById('heightScale').addEventListener('input', (e) => {
+            params.heightScale = parseFloat(e.target.value);
+            if (depthData) generateTerrain(depthData);
+        });
+
+        document.getElementById('resolution').addEventListener('input', async (e) => {
+            params.resolution = parseInt(e.target.value);
+            if (currentImageData) {
+                const img = new Image();
+                img.src = document.getElementById('originalPreview').src;
+                await processImage(img);
+            }
+        });
+
+        document.getElementById('colorTheme').addEventListener('change', (e) => {
+            params.colorTheme = e.target.value;
+            if (depthData) generateTerrain(depthData);
+        });
+
+        document.getElementById('wireframe').addEventListener('change', (e) => {
+            params.wireframe = e.target.checked;
+            if (terrain) terrain.material.wireframe = e.target.checked;
+        });
+
+        let frameCount = 0;
+        let lastFpsTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            controls.update();
+            renderer.render(scene, camera);
+            
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFpsTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
