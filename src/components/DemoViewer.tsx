@@ -8,7 +8,7 @@ export default function DemoViewer({ donut }: { donut: Donut }) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        window.location.href = "/";
+        window.location.href = "/shop";
       }
     };
     window.addEventListener("keydown", handleKey);
@@ -44,7 +44,7 @@ export default function DemoViewer({ donut }: { donut: Donut }) {
           </div>
         </div>
         <Link
-          href="/"
+          href="/shop"
           className="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold transition-all hover:scale-105"
           style={{
             background: "#1A0A2E",
