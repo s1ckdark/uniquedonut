@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contour Lines — Topographic Reveal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { overflow: hidden; background: #060812; font-family: 'Courier New', monospace; }
+  #stage { display: block; position: fixed; inset: 0; }
+
+  .overlay {
+    position: fixed;
+    left: 22px;
+    top: 22px;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    z-index: 10;
+    user-select: none;
+    background: rgba(6,8,18,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+  .overlay .title {
+    color: #8ff7d8;
+    font-size: 12px;
+    margin-bottom: 6px;
+    letter-spacing: 2px;
+  }
+  .overlay .row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    line-height: 1.6;
+  }
+  .overlay .val { color: #ffd93d; min-width: 26px; text-align: right; }
+
+  .hint {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    color: rgba(255,255,255,0.35);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    user-select: none;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="overlay">
+  <div class="title">Topographic Reveal</div>
+  <div class="row">Altitude <span class="val" id="alt">00</span>/<span id="total">00</span></div>
+  <div class="row">Seed <span class="val" id="seed">0000</span></div>
+</div>
+<div class="hint">Click / Space — regenerate</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const altEl = document.getElementById('alt');
+  const totalEl = document.getElementById('total');
+  const seedEl = document.getElementById('seed');
+
+  // ===================================================================
+  // Tunable parameters
+  // ===================================================================
+  const LEVELS          = 18;     // number of contour altitudes
+  const CELL            = 10;     // px size of each sampling cell
+  const PEAK_SIGMA_FRAC = 0.34;   // Gaussian σ as a fraction of min(W,H)
+  const PERTURB_AMP     = 0.20;   // amplitude of organic ring perturbation
+  const LEVEL_DURATION  = 420;    // ms to draw one altitude layer
+  const HOLD_DURATION   = 1600;   // ms to hold full map before fading
+  const FADE_DURATION   = 700;    // ms fade-out before regenerating
+  const LINE_WIDTH      = 0.9;    // base stroke width
+  const GLOW_BAND_PX    = 28;     // width of the "currently drawing" highlight band
+
+  // ===================================================================
+  // Canvas / layout state
+  // ===================================================================
+  let W, H, dpr, cols, rows;
+  let centerX, centerY, sigma;
+  let heightmap;          // Float32Array, normalized to [0, 1]
+  let contoursByLevel;    // Array<Float32Array>  one flat [x1,y1,x2,y2,...] per level
+  let currentSeed = 0;
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.ceil(W / CELL) + 2;
+    rows = Math.ceil(H / CELL) + 2;
+    centerX = W / 2;
+    centerY = H / 2;
+    sigma = Math.min(W, H) * PEAK_SIGMA_FRAC;
+    rebuild();
+  }
+
+  // ===================================================================
+  // Single-peak heightmap.
+  //   h(x,y) = exp(-r²/(2σ²))  + small organic perturbation
+  // One dominant Gaussian peak at the canvas center produces concentric
+  // contour loops. The perturbation (sum of angular + radial sinusoids)
+  // gently wobbles the rings so they feel hand-drawn rather than perfect
+  // circles, while the Gaussian keeps one clear summit.
+  // ===================================================================
+  const N_COMPONENTS = 8;
+  let components = [];
+
+  function seedComponents() {
+    currentSeed = Math.floor(Math.random() * 9999);
+    seedEl.textContent = String(currentSeed).padStart(4, '0');
+    components = [];
+    for (let i = 0; i < N_COMPONENTS; i++) {
+      components.push({
+        // Low-count angular harmonics → big smooth lobes (2=bean, 3=triangle-ish, 4=square-ish)
+        kAng:  2 + Math.floor(Math.random() * 4),    // 2..5
+        // Slow radial phase drift — each ring gets a slightly rotated version of the shape
+        kRad:  0.3 + Math.random() * 0.7,            // 0.3..1.0
+        phase: Math.random() * Math.PI * 2,
+        amp:   1 / (1 + i * 0.5),
+      });
+    }
+  }
+
+  function heightAt(px, py) {
+    const dx = px - centerX;
+    const dy = py - centerY;
+    const r2 = dx * dx + dy * dy;
+    const r  = Math.sqrt(r2);
+    const theta = Math.atan2(dy, dx);
+    const rNorm = r / sigma;
+
+    // Dominant Gaussian summit
+    const base = Math.exp(-r2 / (2 * sigma * sigma));
+
+    // Organic perturbation — sum of angular harmonics with slow radial phase shift.
+    // Envelope  r · exp(-r²/2σ²)  ⇒ ZERO at the peak (preserves single summit),
+    // peaks at r≈σ where rings are most visible, decays at the outskirts.
+    let perturb = 0, norm = 0;
+    for (let i = 0; i < components.length; i++) {
+      const c = components[i];
+      perturb += c.amp * Math.sin(theta * c.kAng + rNorm * c.kRad + c.phase);
+      norm += c.amp;
+    }
+    const env = rNorm * Math.exp(-rNorm * rNorm / 2);
+    perturb = (perturb / norm) * PERTURB_AMP * env;
+
+    return base + perturb;
+  }
+
+  function buildHeightmap() {
+    heightmap = new Float32Array(cols * rows);
+    let min = Infinity, max = -Infinity;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const h = heightAt(x * CELL, y * CELL);
+        heightmap[y * cols + x] = h;
+        if (h < min) min = h;
+        if (h > max) max = h;
+      }
+    }
+    const range = max - min || 1;
+    for (let i = 0; i < heightmap.length; i++) {
+      heightmap[i] = (heightmap[i] - min) / range;
+    }
+  }
+
+  // ===================================================================
+  // Marching squares  — extract contour line segments at threshold v
+  // Corners:  0=(x,y)  1=(x+1,y)  2=(x+1,y+1)  3=(x,y+1)
+  // Edges:    0=top    1=right    2=bottom     3=left
+  // ===================================================================
+  const TABLE = [
+    [],               [[3,0]],          [[0,1]],          [[3,1]],
+    [[1,2]],          [[3,0],[1,2]],    [[0,2]],          [[3,2]],
+    [[2,3]],          [[0,2]],          [[0,1],[2,3]],    [[1,2]],
+    [[3,1]],          [[0,1]],          [[3,0]],          []
+  ];
+
+  function edgePoint(e, x, y, a, b, c, d, v) {
+    let t;
+    switch (e) {
+      case 0: t = (v - a) / (b - a); return [x + t, y        ];
+      case 1: t = (v - b) / (c - b); return [x + 1, y + t    ];
+      case 2: t = (v - d) / (c - d); return [x + t, y + 1    ];
+      case 3: t = (v - a) / (d - a); return [x,     y + t    ];
+    }
+  }
+
+  function computeContours() {
+    contoursByLevel = new Array(LEVELS);
+    for (let i = 0; i < LEVELS; i++) {
+      const v = (i + 1) / (LEVELS + 1);      // thresholds spread across (0,1)
+      const buf = [];
+      for (let y = 0; y < rows - 1; y++) {
+        for (let x = 0; x < cols - 1; x++) {
+          const a = heightmap[y * cols + x];
+          const b = heightmap[y * cols + (x + 1)];
+          const c = heightmap[(y + 1) * cols + (x + 1)];
+          const d = heightmap[(y + 1) * cols + x];
+          const idx = (a > v ? 1 : 0) | (b > v ? 2 : 0)
+                    | (c > v ? 4 : 0) | (d > v ? 8 : 0);
+          const edges = TABLE[idx];
+          for (let k = 0; k < edges.length; k++) {
+            const p1 = edgePoint(edges[k][0], x, y, a, b, c, d, v);
+            const p2 = edgePoint(edges[k][1], x, y, a, b, c, d, v);
+            buf.push(p1[0] * CELL, p1[1] * CELL, p2[0] * CELL, p2[1] * CELL);
+          }
+        }
+      }
+      contoursByLevel[i] = new Float32Array(buf);
+    }
+  }
+
+  // ===================================================================
+  // Color mapping  — HEIGHT → CSS COLOR
+  //
+  // TODO (creative choice):
+  //   Replace this function with your own palette. `t` is the normalized
+  //   altitude in [0, 1] (low → high), `i` is the level index (0..LEVELS-1),
+  //   `total` is LEVELS. Try:
+  //     • monochrome w/ subtle saturation ramp
+  //     • warm→cool gradient (HSL 30 → 220)
+  //     • banded palette (every 5th line gets an accent color)
+  //     • match the UNIQUE DONUT brand palette:
+  //         pink #FF6B9D · yellow #FFD93D · green #6BCB77 · orange #FF8C42
+  // ===================================================================
+  function getContourColor(t, i, total) {
+    // Default: cool cyan floor → warm magenta peaks
+    const hue   = 190 + t * 150;       // 190° → 340°
+    const sat   = 72 - t * 18;
+    const light = 44 + t * 26;
+    return `hsl(${hue}, ${sat}%, ${light}%)`;
+  }
+
+  // ===================================================================
+  // Build + animation
+  // ===================================================================
+  function rebuild() {
+    seedComponents();
+    buildHeightmap();
+    computeContours();
+    totalEl.textContent = String(LEVELS).padStart(2, '0');
+    resetTimeline();
+  }
+
+  let startTime = 0;
+  function resetTimeline() { startTime = performance.now(); }
+
+  function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+  function drawFrame(now) {
+    const elapsed = now - startTime;
+    const totalDur = LEVELS * LEVEL_DURATION + HOLD_DURATION + FADE_DURATION;
+
+    if (elapsed > totalDur) {
+      rebuild();
+      requestAnimationFrame(drawFrame);
+      return;
+    }
+
+    // Fade-out phase alpha
+    const fadeStart = LEVELS * LEVEL_DURATION + HOLD_DURATION;
+    let sceneAlpha = 1;
+    if (elapsed > fadeStart) {
+      sceneAlpha = Math.max(0, 1 - (elapsed - fadeStart) / FADE_DURATION);
+    }
+
+    // Clear
+    ctx.fillStyle = '#060812';
+    ctx.fillRect(0, 0, W, H);
+
+    const activeLevel = Math.min(LEVELS - 1, Math.floor(elapsed / LEVEL_DURATION));
+    altEl.textContent = String(activeLevel + 1).padStart(2, '0');
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = LINE_WIDTH;
+
+    // Draw every level up to (and including) the active one.
+    // Each level uses a left→right sweep for its own reveal.
+    for (let i = 0; i <= activeLevel; i++) {
+      const segs = contoursByLevel[i];
+      const t = (i + 1) / LEVELS;
+      const color = getContourColor(t, i, LEVELS);
+
+      const levelElapsed = elapsed - i * LEVEL_DURATION;
+      const rawProg = Math.max(0, Math.min(1, levelElapsed / LEVEL_DURATION));
+      const prog = easeOutCubic(rawProg);
+      const sweepX = prog * (W + 40);
+
+      ctx.globalAlpha = sceneAlpha;
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      for (let s = 0; s < segs.length; s += 4) {
+        const cx = (segs[s] + segs[s + 2]) * 0.5;
+        if (cx > sweepX) continue;
+        ctx.moveTo(segs[s],     segs[s + 1]);
+        ctx.lineTo(segs[s + 2], segs[s + 3]);
+      }
+      ctx.stroke();
+
+      // Bright glowing "drawing head" band on the currently active level
+      if (i === activeLevel && rawProg < 1) {
+        ctx.save();
+        ctx.globalAlpha = sceneAlpha;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth   = LINE_WIDTH * 2.4;
+        ctx.shadowBlur  = 18;
+        ctx.shadowColor = color;
+        ctx.beginPath();
+        for (let s = 0; s < segs.length; s += 4) {
+          const cx = (segs[s] + segs[s + 2]) * 0.5;
+          const dist = sweepX - cx;
+          if (dist < 0 || dist > GLOW_BAND_PX) continue;
+          ctx.moveTo(segs[s],     segs[s + 1]);
+          ctx.lineTo(segs[s + 2], segs[s + 3]);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(drawFrame);
+  }
+
+  // ===================================================================
+  // Events
+  // ===================================================================
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('click', () => rebuild());
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); rebuild(); }
+  });
+
+  resize();
+  requestAnimationFrame(drawFrame);
+})();
+</script>
+</body>
+</html>

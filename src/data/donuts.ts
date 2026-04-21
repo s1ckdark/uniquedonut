@@ -120,6 +120,16 @@ const allDonuts: Donut[] = [
     price: "$6.25",
     color: "#6BCB77",
   },
+  {
+    slug: "contour-lines",
+    name: "Contour Lines",
+    description: "Topographic reveal, altitude by altitude",
+    file: "contour-lines.html",
+    category: "Cream Filled",
+    tags: ["Canvas", "Animation"],
+    price: "$6.00",
+    color: "#6BCB77",
+  },
   // Chef's Special
   {
     slug: "night-dragon-lizard",
