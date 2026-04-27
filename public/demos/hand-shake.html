@@ -118,6 +118,22 @@
     font-size: 11px;
     letter-spacing: 1.4px;
     text-transform: uppercase;
+    max-width: 480px;
+    text-align: center;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .diag {
+    color: rgba(255,255,255,0.4);
+    font-size: 10px;
+    letter-spacing: 1px;
+    font-family: 'Courier New', monospace;
+    text-transform: none;
+    margin-top: 4px;
+    max-width: 520px;
+    text-align: center;
+    line-height: 1.5;
+    white-space: pre-wrap;
   }
 </style>
 </head>
@@ -140,6 +156,7 @@
   <p>This demo uses your camera to track hand motion locally in your browser. Nothing is uploaded.</p>
   <button id="start">Enable Camera</button>
   <div class="err" id="err"></div>
+  <div class="diag" id="diag"></div>
 </div>
 
 <script type="module">
@@ -408,16 +425,78 @@ function loop(now) {
 // ---------------- Boot ----------------
 const gate = document.getElementById("gate");
 const errEl = document.getElementById("err");
+const diagEl = document.getElementById("diag");
+
+async function diagnose() {
+  const lines = [];
+  lines.push(`origin: ${location.origin}`);
+  lines.push(`secure context: ${window.isSecureContext}`);
+  lines.push(`mediaDevices: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+  // In iframes, check feature policy
+  if (document.featurePolicy) {
+    try {
+      lines.push(`featurePolicy.camera allowed: ${document.featurePolicy.allowsFeature("camera")}`);
+    } catch {}
+  }
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const p = await navigator.permissions.query({ name: "camera" });
+      lines.push(`permissions.camera: ${p.state}`);
+    } catch (e) {
+      lines.push(`permissions.camera: query unsupported (${e.name})`);
+    }
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    try {
+      const ds = await navigator.mediaDevices.enumerateDevices();
+      const cams = ds.filter(d => d.kind === "videoinput");
+      lines.push(`videoinput devices: ${cams.length}`);
+    } catch {}
+  }
+  return lines.join("\n");
+}
+
+function explainError(e) {
+  if (!e) return "Unknown error";
+  switch (e.name) {
+    case "NotAllowedError":
+      return "Permission denied — check browser site settings (camera blocked).";
+    case "NotFoundError":
+      return "No camera found on this device.";
+    case "NotReadableError":
+      return "Camera is in use by another application.";
+    case "OverconstrainedError":
+      return "Requested camera constraints not satisfiable.";
+    case "SecurityError":
+      return "Blocked by Permissions Policy or insecure context (use https or localhost).";
+    case "AbortError":
+      return "Camera start aborted.";
+    default:
+      return `${e.name || "Error"}: ${e.message || String(e)}`;
+  }
+}
+
+(async () => {
+  diagEl.textContent = await diagnose();
+})();
+
 document.getElementById("start").addEventListener("click", async () => {
   errEl.textContent = "";
   try {
+    if (!window.isSecureContext) {
+      throw new DOMException("Insecure context — getUserMedia requires HTTPS or localhost.", "SecurityError");
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new DOMException("navigator.mediaDevices.getUserMedia not available in this context.", "SecurityError");
+    }
     await initCamera();
     await initLandmarker();
     gate.classList.add("hidden");
     requestAnimationFrame(loop);
   } catch (e) {
-    console.error(e);
-    errEl.textContent = (e && e.message) ? e.message : "Camera unavailable";
+    console.error("[hand-shake] init failed", e);
+    errEl.textContent = explainError(e);
+    diagEl.textContent = await diagnose();
   }
 });
 </script>
