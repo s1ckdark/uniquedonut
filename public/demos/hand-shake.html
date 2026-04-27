@@ -163,7 +163,7 @@
 import {
   HandLandmarker,
   FilesetResolver,
-} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs";
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/vision_bundle.mjs";
 
 // ---------------- Donut Grid ----------------
 const DONUT_GLYPHS = ["🍩", "🍪", "🧁", "🥯", "🍰"];
@@ -325,7 +325,7 @@ let landmarker = null;
 
 async function initLandmarker() {
   const fileset = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm"
   );
   landmarker = await HandLandmarker.createFromOptions(fileset, {
     baseOptions: {
