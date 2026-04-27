@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hand Shake — Camera Reactive Donuts</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    overflow: hidden;
+    background: #060812;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    height: 100vh;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+
+  #cam {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    transform: scaleX(-1);
+    opacity: 0.18;
+    filter: blur(2px) saturate(0.6);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .overlay {
+    position: fixed;
+    left: 22px;
+    top: 22px;
+    z-index: 10;
+    background: rgba(6,8,18,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 12px 16px;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    user-select: none;
+  }
+  .overlay .title {
+    color: #FF8C42;
+    font-size: 12px;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+  }
+  .overlay .row { display: flex; gap: 10px; line-height: 1.7; }
+  .overlay .val { color: #FFD93D; min-width: 40px; text-align: right; }
+
+  .hint {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 10;
+    color: rgba(255,255,255,0.45);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    user-select: none;
+  }
+
+  .gate {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 18px;
+    background: rgba(6,8,18,0.92);
+  }
+  .gate h2 {
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: #FF8C42;
+    text-transform: uppercase;
+  }
+  .gate p {
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    color: rgba(255,255,255,0.55);
+    text-transform: uppercase;
+    text-align: center;
+    max-width: 420px;
+    line-height: 1.6;
+  }
+  .gate button {
+    background: #FF8C42;
+    color: #060812;
+    border: 0;
+    padding: 10px 22px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .15s ease;
+  }
+  .gate button:hover { transform: scale(1.05); }
+  .gate.hidden { display: none; }
+
+  .err {
+    color: #ff5060;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<video id="cam" playsinline muted></video>
+<canvas id="stage"></canvas>
+
+<div class="overlay">
+  <div class="title">Hand Shake</div>
+  <div class="row">hands <span class="val" id="v-hands">0</span></div>
+  <div class="row">donuts <span class="val" id="v-count">—</span></div>
+  <div class="row">fps <span class="val" id="v-fps">—</span></div>
+</div>
+
+<div class="hint">Wave your hand at the camera</div>
+
+<div class="gate" id="gate">
+  <h2>Permission Required</h2>
+  <p>This demo uses your camera to track hand motion locally in your browser. Nothing is uploaded.</p>
+  <button id="start">Enable Camera</button>
+  <div class="err" id="err"></div>
+</div>
+
+<script type="module">
+import {
+  HandLandmarker,
+  FilesetResolver,
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs";
+
+// ---------------- Donut Grid ----------------
+const DONUT_GLYPHS = ["🍩", "🍪", "🧁", "🥯", "🍰"];
+const FONT = "'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
+
+const stage = document.getElementById("stage");
+const ctx = stage.getContext("2d");
+const cam = document.getElementById("cam");
+
+let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+let donuts = [];
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  stage.width = W * DPR;
+  stage.height = H * DPR;
+  stage.style.width = W + "px";
+  stage.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  buildGrid();
+}
+
+function buildGrid() {
+  donuts.length = 0;
+  // Aim for a tile size ~80–110px depending on viewport
+  const target = Math.max(70, Math.min(110, Math.round(Math.min(W, H) / 9)));
+  const cols = Math.max(4, Math.round(W / target));
+  const rows = Math.max(4, Math.round(H / target));
+  const sx = W / cols;
+  const sy = H / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const ox = sx * (c + 0.5);
+      const oy = sy * (r + 0.5);
+      donuts.push({
+        ox, oy,           // origin (rest position)
+        x: ox, y: oy,     // current position
+        vx: 0, vy: 0,     // velocity
+        rot: 0, vr: 0,    // rotation + angular velocity
+        size: Math.min(sx, sy) * 0.7,
+        glyph: DONUT_GLYPHS[(r * 7 + c * 3) % DONUT_GLYPHS.length],
+        seed: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+  document.getElementById("v-count").textContent = donuts.length;
+}
+
+window.addEventListener("resize", resize);
+resize();
+
+// ---------------- Hand state ----------------
+// fingerTips: array of {x, y, vx, vy} in screen pixels (already mirrored)
+let fingerTips = [];
+let palmCenters = [];
+let prevTipsByHand = new Map(); // hand index -> [{x,y}*5] last frame
+
+// MediaPipe HandLandmarker indexes for the 5 fingertips
+const TIP_IDX = [4, 8, 12, 16, 20];
+const PALM_IDX = [0, 5, 9, 13, 17];
+
+// ---------------- TODO: User-defined interaction ----------------
+//
+// Decide HOW hands push donuts. Called for every donut, every frame.
+// Mutates `donut.vx`, `donut.vy` (and optionally `donut.vr` for spin).
+//
+// Inputs:
+//   donut       — { x, y, ox, oy, vx, vy, vr, size, ... }
+//   tips        — [{ x, y, vx, vy }, ...]   fingertip positions/velocity (px, px/s)
+//   palms       — [{ x, y }, ...]           palm centers (px)
+//   dt          — seconds since last frame (~0.016)
+//
+// Ideas:
+//   • Inverse-square push: donuts further away barely move, near ones explode out
+//   • Velocity transfer: closer the hand & faster it moves, the more it kicks
+//   • Add tangential force for swirl, or use vr for spin
+//
+// The springback (donut → origin) and damping happen AFTER this — you only
+// add energy here. Try ~5–10 lines.
+//
+function applyHandForce(donut, tips, palms, dt) {
+  // TODO: write me. Sample starter (delete or replace):
+  for (const t of tips) {
+    const dx = donut.x - t.x;
+    const dy = donut.y - t.y;
+    const d2 = dx * dx + dy * dy;
+    const r = 160; // influence radius in px
+    if (d2 < r * r && d2 > 1) {
+      const d = Math.sqrt(d2);
+      const fall = 1 - d / r;                 // 0..1
+      const speed = Math.hypot(t.vx, t.vy);   // px/s
+      const kick = (200 + speed * 0.6) * fall;
+      donut.vx += (dx / d) * kick * dt;
+      donut.vy += (dy / d) * kick * dt;
+      donut.vr += (Math.random() - 0.5) * fall * 6;
+    }
+  }
+}
+
+// ---------------- Physics ----------------
+const SPRING = 14;     // pull-back to origin
+const DAMP = 4.5;      // velocity damping (per second)
+const ROT_DAMP = 5;
+const MAX_DT = 1 / 30;
+
+function step(dt) {
+  dt = Math.min(dt, MAX_DT);
+  for (const d of donuts) {
+    applyHandForce(d, fingerTips, palmCenters, dt);
+
+    // Spring back to origin
+    d.vx += -SPRING * (d.x - d.ox) * dt;
+    d.vy += -SPRING * (d.y - d.oy) * dt;
+
+    // Damping (exponential)
+    const damp = Math.exp(-DAMP * dt);
+    d.vx *= damp;
+    d.vy *= damp;
+    d.vr *= Math.exp(-ROT_DAMP * dt);
+
+    // Integrate
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.rot += d.vr * dt;
+  }
+}
+
+function draw(t) {
+  // Trail / fade
+  ctx.fillStyle = "rgba(6, 8, 18, 0.55)";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (const d of donuts) {
+    // Subtle idle wobble so it never looks frozen
+    const idle = Math.sin(t * 0.0015 + d.seed) * 0.6;
+    ctx.save();
+    ctx.translate(d.x, d.y + idle);
+    ctx.rotate(d.rot);
+    ctx.font = `${d.size}px ${FONT}`;
+    ctx.fillText(d.glyph, 0, 0);
+    ctx.restore();
+  }
+
+  // Fingertip indicators (tiny dots)
+  ctx.fillStyle = "rgba(255, 217, 61, 0.85)";
+  for (const tip of fingerTips) {
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------- Camera + MediaPipe ----------------
+let landmarker = null;
+
+async function initLandmarker() {
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+  );
+  landmarker = await HandLandmarker.createFromOptions(fileset, {
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate: "GPU",
+    },
+    runningMode: "VIDEO",
+    numHands: 2,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+}
+
+async function initCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+    audio: false,
+  });
+  cam.srcObject = stream;
+  await cam.play();
+}
+
+let lastVideoTime = -1;
+let lastDetectTime = performance.now();
+
+function detectHands(now) {
+  if (!landmarker || cam.readyState < 2) return;
+  if (cam.currentTime === lastVideoTime) return;
+  lastVideoTime = cam.currentTime;
+
+  const result = landmarker.detectForVideo(cam, now);
+  const dt = Math.max(1e-3, (now - lastDetectTime) / 1000);
+  lastDetectTime = now;
+
+  const newTips = [];
+  const newPalms = [];
+  const tipsByHand = new Map();
+
+  if (result.landmarks && result.landmarks.length) {
+    result.landmarks.forEach((lm, hi) => {
+      const prev = prevTipsByHand.get(hi) || [];
+      const handTips = [];
+      TIP_IDX.forEach((idx, i) => {
+        // Mirror X because the video is displayed mirrored
+        const x = (1 - lm[idx].x) * W;
+        const y = lm[idx].y * H;
+        const p = prev[i];
+        const vx = p ? (x - p.x) / dt : 0;
+        const vy = p ? (y - p.y) / dt : 0;
+        const tip = { x, y, vx, vy };
+        newTips.push(tip);
+        handTips.push({ x, y });
+      });
+      tipsByHand.set(hi, handTips);
+
+      // palm center = mean of palm landmarks
+      let px = 0, py = 0;
+      for (const idx of PALM_IDX) {
+        px += (1 - lm[idx].x) * W;
+        py += lm[idx].y * H;
+      }
+      newPalms.push({ x: px / PALM_IDX.length, y: py / PALM_IDX.length });
+    });
+  }
+
+  fingerTips = newTips;
+  palmCenters = newPalms;
+  prevTipsByHand = tipsByHand;
+  document.getElementById("v-hands").textContent = result.landmarks?.length || 0;
+}
+
+// ---------------- Main loop ----------------
+let lastFrame = performance.now();
+let fpsAccum = 0, fpsCount = 0, fpsT = lastFrame;
+
+function loop(now) {
+  const dt = (now - lastFrame) / 1000;
+  lastFrame = now;
+
+  detectHands(now);
+  step(dt);
+  draw(now);
+
+  fpsAccum += dt;
+  fpsCount++;
+  if (now - fpsT >= 500) {
+    document.getElementById("v-fps").textContent = Math.round(fpsCount / fpsAccum);
+    fpsAccum = 0;
+    fpsCount = 0;
+    fpsT = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+// ---------------- Boot ----------------
+const gate = document.getElementById("gate");
+const errEl = document.getElementById("err");
+document.getElementById("start").addEventListener("click", async () => {
+  errEl.textContent = "";
+  try {
+    await initCamera();
+    await initLandmarker();
+    gate.classList.add("hidden");
+    requestAnimationFrame(loop);
+  } catch (e) {
+    console.error(e);
+    errEl.textContent = (e && e.message) ? e.message : "Camera unavailable";
+  }
+});
+</script>
+</body>
+</html>

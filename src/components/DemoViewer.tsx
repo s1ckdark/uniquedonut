@@ -60,7 +60,7 @@ export default function DemoViewer({ donut }: { donut: Donut }) {
       <iframe
         src={`/demos/${donut.file}`}
         className="flex-1 w-full border-0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+        allow="accelerometer; autoplay; camera; clipboard-write; encrypted-media; gyroscope"
       />
     </div>
   );

@@ -161,6 +161,16 @@ const allDonuts: Donut[] = [
     price: "$7.00",
     color: "#FF8C42",
   },
+  {
+    slug: "hand-shake",
+    name: "Hand Shake",
+    description: "Wave at your camera, watch donuts dance",
+    file: "hand-shake.html",
+    category: "Chef's Special",
+    tags: ["Camera", "AI"],
+    price: "$8.00",
+    color: "#FF8C42",
+  },
 ];
 
 export const categories: Category[] = [
