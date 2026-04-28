@@ -226,41 +226,64 @@ let prevTipsByHand = new Map(); // hand index -> [{x,y}*5] last frame
 const TIP_IDX = [4, 8, 12, 16, 20];
 const PALM_IDX = [0, 5, 9, 13, 17];
 
-// ---------------- TODO: User-defined interaction ----------------
-//
-// Decide HOW hands push donuts. Called for every donut, every frame.
-// Mutates `donut.vx`, `donut.vy` (and optionally `donut.vr` for spin).
-//
-// Inputs:
-//   donut       — { x, y, ox, oy, vx, vy, vr, size, ... }
-//   tips        — [{ x, y, vx, vy }, ...]   fingertip positions/velocity (px, px/s)
-//   palms       — [{ x, y }, ...]           palm centers (px)
-//   dt          — seconds since last frame (~0.016)
-//
-// Ideas:
-//   • Inverse-square push: donuts further away barely move, near ones explode out
-//   • Velocity transfer: closer the hand & faster it moves, the more it kicks
-//   • Add tangential force for swirl, or use vr for spin
-//
-// The springback (donut → origin) and damping happen AFTER this — you only
-// add energy here. Try ~5–10 lines.
-//
+// ---------------- Hand interaction ----------------
+// Vacuum / vortex: donuts get sucked toward palm centers, swirl, then orbit.
+// Fingertips add a fine-grained tug for closer interaction.
+const SUCK_RADIUS  = 320;   // palm pull range (px)
+const SUCK_PULL    = 2800;  // radial accel toward palm (px/s²) — must beat SPRING
+const SUCK_SWIRL   = 900;   // tangential accel for vortex feel
+const ORBIT_ZONE   = 80;    // inside this radius, bleed inward velocity → orbit
+const TIP_RADIUS   = 110;
+const TIP_PULL     = 850;
+
 function applyHandForce(donut, tips, palms, dt) {
-  // TODO: write me. Sample starter (delete or replace):
-  for (const t of tips) {
-    const dx = donut.x - t.x;
-    const dy = donut.y - t.y;
+  for (const palm of palms) {
+    const dx = palm.x - donut.x;
+    const dy = palm.y - donut.y;
     const d2 = dx * dx + dy * dy;
-    const r = 160; // influence radius in px
-    if (d2 < r * r && d2 > 1) {
-      const d = Math.sqrt(d2);
-      const fall = 1 - d / r;                 // 0..1
-      const speed = Math.hypot(t.vx, t.vy);   // px/s
-      const kick = (200 + speed * 0.6) * fall;
-      donut.vx += (dx / d) * kick * dt;
-      donut.vy += (dy / d) * kick * dt;
-      donut.vr += (Math.random() - 0.5) * fall * 6;
+    if (d2 >= SUCK_RADIUS * SUCK_RADIUS) continue;
+
+    const d = Math.max(10, Math.sqrt(d2));
+    const t = 1 - d / SUCK_RADIUS;            // 0..1, closer = stronger
+    const nx = dx / d, ny = dy / d;
+
+    // Radial pull (eased so it doesn't blow up at the center)
+    const pull = SUCK_PULL * t * t;
+    donut.vx += nx * pull * dt;
+    donut.vy += ny * pull * dt;
+
+    // Tangential swirl — perpendicular to radial direction → vortex
+    const swirl = SUCK_SWIRL * t;
+    donut.vx += -ny * swirl * dt;
+    donut.vy +=  nx * swirl * dt;
+    donut.vr += t * 9 * dt;
+
+    // Once we're inside the orbit zone, bleed inward speed so donuts
+    // settle into an orbit instead of overshooting through the palm.
+    if (d < ORBIT_ZONE) {
+      const radSpeed = donut.vx * nx + donut.vy * ny;
+      if (radSpeed > 0) {
+        const k = (1 - d / ORBIT_ZONE) * 0.7;
+        donut.vx -= nx * radSpeed * k;
+        donut.vy -= ny * radSpeed * k;
+      }
     }
+  }
+
+  // Fingertips: shorter range, also pull toward (so flicking your fingers
+  // grabs nearby donuts). Inherits a bit of fingertip velocity for "drag".
+  for (const tip of tips) {
+    const dx = tip.x - donut.x;
+    const dy = tip.y - donut.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= TIP_RADIUS * TIP_RADIUS || d2 < 1) continue;
+    const d = Math.sqrt(d2);
+    const t = 1 - d / TIP_RADIUS;
+    const grab = TIP_PULL * t;
+    donut.vx += (dx / d) * grab * dt;
+    donut.vy += (dy / d) * grab * dt;
+    donut.vx += tip.vx * t * 1.6 * dt;
+    donut.vy += tip.vy * t * 1.6 * dt;
   }
 }
 
@@ -309,6 +332,26 @@ function draw(t) {
     ctx.font = `${d.size}px ${FONT}`;
     ctx.fillText(d.glyph, 0, 0);
     ctx.restore();
+  }
+
+  // Vortex rings around each palm (visual cue for the suction field)
+  for (const palm of palmCenters) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.005);
+    const rings = 3;
+    for (let i = 0; i < rings; i++) {
+      const phase = ((t * 0.0006) + i / rings) % 1;
+      const r = 30 + phase * (SUCK_RADIUS - 30);
+      const alpha = (1 - phase) * 0.18;
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(255, 140, 66, ${alpha})`;
+      ctx.lineWidth = 1.2;
+      ctx.arc(palm.x, palm.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(255, 140, 66, ${0.25 + pulse * 0.25})`;
+    ctx.arc(palm.x, palm.y, 6, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // Fingertip indicators (tiny dots)
