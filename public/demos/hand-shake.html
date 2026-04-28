@@ -220,11 +220,23 @@ resize();
 // fingerTips: array of {x, y, vx, vy} in screen pixels (already mirrored)
 let fingerTips = [];
 let palmCenters = [];
+let handLandmarks = []; // array of 21-point arrays {x,y}, one per detected hand
 let prevTipsByHand = new Map(); // hand index -> [{x,y}*5] last frame
 
-// MediaPipe HandLandmarker indexes for the 5 fingertips
+// MediaPipe HandLandmarker topology
 const TIP_IDX = [4, 8, 12, 16, 20];
 const PALM_IDX = [0, 5, 9, 13, 17];
+// Bone connections (pairs of landmark indices) for the 21-point skeleton
+const HAND_BONES = [
+  [0,1],[1,2],[2,3],[3,4],         // thumb
+  [0,5],[5,6],[6,7],[7,8],         // index
+  [5,9],[9,10],[10,11],[11,12],    // middle
+  [9,13],[13,14],[14,15],[15,16],  // ring
+  [13,17],[17,18],[18,19],[19,20], // pinky
+  [0,17],                           // wrist → pinky base (closes palm)
+];
+// Palm polygon (closed loop) for filling the hand silhouette
+const PALM_LOOP = [0, 1, 5, 9, 13, 17];
 
 // ---------------- Hand interaction ----------------
 // Vacuum / vortex: donuts get sucked toward palm centers, swirl, then orbit.
@@ -336,7 +348,6 @@ function draw(t) {
 
   // Vortex rings around each palm (visual cue for the suction field)
   for (const palm of palmCenters) {
-    const pulse = 0.5 + 0.5 * Math.sin(t * 0.005);
     const rings = 3;
     for (let i = 0; i < rings; i++) {
       const phase = ((t * 0.0006) + i / rings) % 1;
@@ -348,18 +359,50 @@ function draw(t) {
       ctx.arc(palm.x, palm.y, r, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(255, 140, 66, ${0.25 + pulse * 0.25})`;
-    ctx.arc(palm.x, palm.y, 6, 0, Math.PI * 2);
-    ctx.fill();
   }
 
-  // Fingertip indicators (tiny dots)
-  ctx.fillStyle = "rgba(255, 217, 61, 0.85)";
-  for (const tip of fingerTips) {
+  // ---- Hand skeleton + palm silhouette ----
+  for (const hand of handLandmarks) {
+    // Palm fill — closed polygon through wrist + finger bases
     ctx.beginPath();
-    ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
+    for (let i = 0; i < PALM_LOOP.length; i++) {
+      const p = hand[PALM_LOOP[i]];
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(255, 140, 66, 0.10)";
     ctx.fill();
+    ctx.strokeStyle = "rgba(255, 140, 66, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Bones with neon glow
+    ctx.save();
+    ctx.shadowColor = "rgba(255, 217, 61, 0.85)";
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = "rgba(255, 217, 61, 0.9)";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (const [a, b] of HAND_BONES) {
+      ctx.moveTo(hand[a].x, hand[a].y);
+      ctx.lineTo(hand[b].x, hand[b].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Joints (fingertips bigger + pulsing)
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.006);
+    for (let i = 0; i < hand.length; i++) {
+      const isTip = TIP_IDX.includes(i);
+      const r = isTip ? 5 + pulse * 1.5 : 3;
+      ctx.beginPath();
+      ctx.fillStyle = isTip
+        ? `rgba(255, 217, 61, ${0.85 + pulse * 0.15})`
+        : "rgba(255, 217, 61, 0.85)";
+      ctx.arc(hand[i].x, hand[i].y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -407,21 +450,23 @@ function detectHands(now) {
 
   const newTips = [];
   const newPalms = [];
+  const newHands = [];
   const tipsByHand = new Map();
 
   if (result.landmarks && result.landmarks.length) {
     result.landmarks.forEach((lm, hi) => {
+      // Mirror all 21 landmarks once; reuse for tips, palm, and rendering
+      const handPts = lm.map(p => ({ x: (1 - p.x) * W, y: p.y * H }));
+      newHands.push(handPts);
+
       const prev = prevTipsByHand.get(hi) || [];
       const handTips = [];
       TIP_IDX.forEach((idx, i) => {
-        // Mirror X because the video is displayed mirrored
-        const x = (1 - lm[idx].x) * W;
-        const y = lm[idx].y * H;
+        const { x, y } = handPts[idx];
         const p = prev[i];
         const vx = p ? (x - p.x) / dt : 0;
         const vy = p ? (y - p.y) / dt : 0;
-        const tip = { x, y, vx, vy };
-        newTips.push(tip);
+        newTips.push({ x, y, vx, vy });
         handTips.push({ x, y });
       });
       tipsByHand.set(hi, handTips);
@@ -429,8 +474,8 @@ function detectHands(now) {
       // palm center = mean of palm landmarks
       let px = 0, py = 0;
       for (const idx of PALM_IDX) {
-        px += (1 - lm[idx].x) * W;
-        py += lm[idx].y * H;
+        px += handPts[idx].x;
+        py += handPts[idx].y;
       }
       newPalms.push({ x: px / PALM_IDX.length, y: py / PALM_IDX.length });
     });
@@ -438,6 +483,7 @@ function detectHands(now) {
 
   fingerTips = newTips;
   palmCenters = newPalms;
+  handLandmarks = newHands;
   prevTipsByHand = tipsByHand;
   document.getElementById("v-hands").textContent = result.landmarks?.length || 0;
 }
