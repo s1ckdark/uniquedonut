@@ -6,9 +6,11 @@ import type { Donut } from "@/data/donuts";
 
 export default function DonutCard({ donut }: { donut: Donut }) {
   const [hovered, setHovered] = useState(false);
+  const demoHref = donut.route ?? `/demo/${donut.slug}`;
+  const previewSrc = donut.route ?? `/demos/${donut.file}`;
 
   return (
-    <Link href={`/demo/${donut.slug}`}>
+    <Link href={demoHref}>
       <div
         className="relative group cursor-pointer rounded-2xl overflow-hidden transition-all duration-300"
         style={{
@@ -26,7 +28,7 @@ export default function DonutCard({ donut }: { donut: Donut }) {
         <div className="relative w-full aspect-[4/3] bg-black overflow-hidden">
           {hovered ? (
             <iframe
-              src={`/demos/${donut.file}`}
+              src={previewSrc}
               className="w-full h-full border-0 pointer-events-none"
               style={{ transform: "scale(0.5)", transformOrigin: "0 0", width: "200%", height: "200%" }}
               loading="lazy"

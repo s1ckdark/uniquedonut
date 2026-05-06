@@ -2,7 +2,8 @@ export interface Donut {
   slug: string;
   name: string;
   description: string;
-  file: string;
+  file?: string;
+  route?: string;
   category: string;
   tags: string[];
   price: string;
@@ -170,6 +171,16 @@ const allDonuts: Donut[] = [
     tags: ["Camera", "AI"],
     price: "$8.00",
     color: "#FF8C42",
+  },
+  {
+    slug: "web-shell",
+    name: "Web Shell",
+    description: "A sandboxed browser terminal",
+    route: "/shell",
+    category: "Chef's Special",
+    tags: ["Terminal", "Interactive"],
+    price: "$8.25",
+    color: "#6BCB77",
   },
 ];
 

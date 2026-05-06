@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { Donut } from "@/data/donuts";
 
 export default function DemoViewer({ donut }: { donut: Donut }) {
+  const demoSrc = donut.route ?? `/demos/${donut.file}`;
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -58,7 +60,7 @@ export default function DemoViewer({ donut }: { donut: Donut }) {
 
       {/* Demo iframe */}
       <iframe
-        src={`/demos/${donut.file}`}
+        src={demoSrc}
         className="flex-1 w-full border-0"
         allow="accelerometer; autoplay; camera; clipboard-write; encrypted-media; gyroscope"
       />
