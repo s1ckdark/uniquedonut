@@ -38,20 +38,50 @@ export default function Home() {
           Fresh-baked creative demos, served hot 🔥
         </p>
 
-        {/* CTA Button */}
-        <Link
-          href="/shop"
-          className="mt-12 group relative inline-flex items-center gap-3 px-10 py-5 rounded-full text-2xl font-black uppercase tracking-wider transition-all duration-300 hover:scale-110"
-          style={{
-            fontFamily: "'Fredoka', cursive",
-            background: "linear-gradient(135deg, #FF6B9D, #FF8C42)",
-            color: "#1A0A2E",
-            boxShadow: "0 0 30px rgba(255,107,157,0.4), 0 8px 32px rgba(0,0,0,0.3)",
-          }}
-        >
-          <span>Enter the Shop</span>
-          <span className="text-3xl group-hover:animate-bounce">🍩</span>
-        </Link>
+        {/* CTA Buttons */}
+        <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row">
+          <Link
+            href="/shop"
+            className="group relative inline-flex items-center gap-3 px-10 py-5 rounded-full text-2xl font-black uppercase tracking-wider transition-all duration-300 hover:scale-110"
+            style={{
+              fontFamily: "'Fredoka', cursive",
+              background: "linear-gradient(135deg, #FF6B9D, #FF8C42)",
+              color: "#1A0A2E",
+              boxShadow: "0 0 30px rgba(255,107,157,0.4), 0 8px 32px rgba(0,0,0,0.3)",
+            }}
+          >
+            <span>Enter the Shop</span>
+            <span className="text-3xl group-hover:animate-bounce">🍩</span>
+          </Link>
+          <Link
+            href="/ebs-documentaries"
+            className="group inline-flex items-center gap-3 px-8 py-4 rounded-full text-lg font-black uppercase tracking-wider transition-all duration-300 hover:scale-105"
+            style={{
+              fontFamily: "'Fredoka', cursive",
+              background: "#6BCB7725",
+              color: "#6BCB77",
+              border: "1px solid #6BCB7770",
+              boxShadow: "0 0 24px rgba(107,203,119,0.22)",
+            }}
+          >
+            <span>EBS Docu Shelf</span>
+            <span className="text-2xl group-hover:animate-bounce">📺</span>
+          </Link>
+          <Link
+            href="/visualizer"
+            className="group inline-flex items-center gap-3 px-8 py-4 rounded-full text-lg font-black uppercase tracking-wider transition-all duration-300 hover:scale-105"
+            style={{
+              fontFamily: "'Fredoka', cursive",
+              background: "#00ccff20",
+              color: "#00ccff",
+              border: "1px solid #00ccff50",
+              boxShadow: "0 0 24px rgba(0,204,255,0.2)",
+            }}
+          >
+            <span>Audio Visualizer</span>
+            <span className="text-2xl group-hover:animate-bounce">🎙️</span>
+          </Link>
+        </div>
 
         {/* Decorative bar */}
         <div className="mt-16 flex items-center gap-3 opacity-50">
