@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), gyroscope=(self), accelerometer=(self)",
+            value: "camera=(self), microphone=(self), gyroscope=(self), accelerometer=(self)",
           },
         ],
       },
