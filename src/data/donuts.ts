@@ -182,6 +182,16 @@ const allDonuts: Donut[] = [
     price: "$8.25",
     color: "#6BCB77",
   },
+  {
+    slug: "audio-visualizer",
+    name: "Audio Visualizer",
+    description: "Mic input becomes living art",
+    route: "/visualizer",
+    category: "Chef's Special",
+    tags: ["Audio", "Canvas"],
+    price: "$8.50",
+    color: "#00ccff",
+  },
 ];
 
 export const categories: Category[] = [

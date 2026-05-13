@@ -17,6 +17,7 @@ export default function VisualizerPage() {
   const [mode, setMode] = useState<VisualizerMode>("bars");
   const [sensitivity, setSensitivity] = useState(1.5);
   const [colorScheme, setColorScheme] = useState<"neon" | "ocean" | "fire" | "rainbow">("neon");
+  const [micStatus, setMicStatus] = useState<"idle" | "requesting" | "granted" | "denied">("idle");
 
   const colorMap = {
     neon: ["#00ff88", "#00ccff", "#ff00ff", "#ffff00"],
@@ -27,7 +28,21 @@ export default function VisualizerPage() {
 
   const startMic = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicStatus("requesting");
+
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setMicStatus("denied");
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
       streamRef.current = stream;
 
       const audioCtx = new AudioContext();
@@ -44,10 +59,11 @@ export default function VisualizerPage() {
       dataArrayRef.current = new Uint8Array(bufferLength);
       timeArrayRef.current = new Uint8Array(bufferLength);
 
+      setMicStatus("granted");
       setIsActive(true);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Mic error:", err);
-      alert("마이크 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해주세요.");
+      setMicStatus("denied");
     }
   }, []);
 
@@ -243,16 +259,42 @@ export default function VisualizerPage() {
           />
           {!isActive && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="w-20 h-20 rounded-full border-2 border-white/20 flex items-center justify-center mb-4">
-                <svg
-                  className="w-10 h-10 text-white/50"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1 7h2v-2.06c2.84-.48 5-2.94 5-5.94h-2c0 2.21-1.79 4-4 4s-4-1.79-4-4H6c0 3 2.16 5.52 5 5.94V21z" />
-                </svg>
-              </div>
-              <p className="text-white/50 text-lg">마이크를 활성화해주세요</p>
+              {micStatus === "idle" && (
+                <>
+                  <div className="w-20 h-20 rounded-full border-2 border-white/20 flex items-center justify-center mb-4">
+                    <svg className="w-10 h-10 text-white/50" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1 7h2v-2.06c2.84-.48 5-2.94 5-5.94h-2c0 2.21-1.79 4-4 4s-4-1.79-4-4H6c0 3 2.16 5.52 5 5.94V21z" />
+                    </svg>
+                  </div>
+                  <p className="text-white/50 text-lg">아래 버튼을 눌러 마이크를 활성화하세요</p>
+                </>
+              )}
+              {micStatus === "requesting" && (
+                <>
+                  <div className="w-20 h-20 rounded-full border-2 border-cyan-400/50 flex items-center justify-center mb-4 animate-pulse">
+                    <svg className="w-10 h-10 text-cyan-400 animate-bounce" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1 7h2v-2.06c2.84-.48 5-2.94 5-5.94h-2c0 2.21-1.79 4-4 4s-4-1.79-4-4H6c0 3 2.16 5.52 5 5.94V21z" />
+                    </svg>
+                  </div>
+                  <p className="text-cyan-400 text-lg animate-pulse">마이크 권한을 요청하고 있습니다...</p>
+                  <p className="text-white/30 text-sm mt-2">브라우저에서 마이크 접근을 허용해주세요</p>
+                </>
+              )}
+              {micStatus === "denied" && (
+                <>
+                  <div className="w-20 h-20 rounded-full border-2 border-red-400/50 flex items-center justify-center mb-4">
+                    <svg className="w-10 h-10 text-red-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
+                    </svg>
+                  </div>
+                  <p className="text-red-400 text-lg">마이크 권한이 거부되었습니다</p>
+                  <p className="text-white/40 text-sm mt-2">
+                    브라우저 주소창의 자물쇠 아이콘을 클릭하고
+                    <br />
+                    마이크 권한을 "허용"으로 변경한 후 새로고침하세요
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>

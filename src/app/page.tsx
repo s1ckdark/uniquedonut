@@ -67,20 +67,6 @@ export default function Home() {
             <span>EBS Docu Shelf</span>
             <span className="text-2xl group-hover:animate-bounce">📺</span>
           </Link>
-          <Link
-            href="/visualizer"
-            className="group inline-flex items-center gap-3 px-8 py-4 rounded-full text-lg font-black uppercase tracking-wider transition-all duration-300 hover:scale-105"
-            style={{
-              fontFamily: "'Fredoka', cursive",
-              background: "#00ccff20",
-              color: "#00ccff",
-              border: "1px solid #00ccff50",
-              boxShadow: "0 0 24px rgba(0,204,255,0.2)",
-            }}
-          >
-            <span>Audio Visualizer</span>
-            <span className="text-2xl group-hover:animate-bounce">🎙️</span>
-          </Link>
         </div>
 
         {/* Decorative bar */}
