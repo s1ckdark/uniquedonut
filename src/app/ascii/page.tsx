@@ -86,15 +86,23 @@ export default function AsciiPage() {
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      // The <video> element only mounts once status flips to "granted", so the
+      // srcObject wiring happens in the effect below — not here.
       setCamStatus("granted");
     } catch {
       setCamStatus("denied");
     }
   }, []);
+
+  // Once status is "granted", the <video> is mounted; attach the stream then.
+  useEffect(() => {
+    if (camStatus === "granted" && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {
+        // Autoplay can be blocked; the muted attribute keeps it allowed.
+      });
+    }
+  }, [camStatus]);
 
   const stopCam = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
