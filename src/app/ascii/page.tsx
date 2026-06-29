@@ -14,9 +14,12 @@ export default function AsciiPage() {
   const [output, setOutput] = useState<string>("");
   const [sourceLabel, setSourceLabel] = useState<string | undefined>();
   const [isDragging, setIsDragging] = useState(false);
+  const [camStatus, setCamStatus] = useState<"idle" | "requesting" | "granted" | "denied">("idle");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Read an image element into clamped pixel data, run conversion, set output.
   const renderFromImage = useCallback(
@@ -70,6 +73,60 @@ export default function AsciiPage() {
     const file = e.dataTransfer.files?.[0];
     if (file && file.type.startsWith("image/")) loadImageFile(file);
   }
+
+  const startCam = useCallback(async () => {
+    try {
+      setCamStatus("requesting");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCamStatus("denied");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCamStatus("granted");
+    } catch {
+      setCamStatus("denied");
+    }
+  }, []);
+
+  const stopCam = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCamStatus("idle");
+  }, []);
+
+  function captureFrame() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const scale = Math.min(1, MAX_DIM / Math.max(video.videoWidth, video.videoHeight));
+    const w = Math.max(1, Math.round(video.videoWidth * scale));
+    const h = Math.max(1, Math.round(video.videoHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // Mirror horizontally for a natural selfie feel.
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    const pixelData: PixelData = { pixels: data, width: w, height: h };
+    setOutput(convertImage(pixelData, { mode, color, targetWidth }));
+    setSourceLabel(`webcam · ${w}×${h}`);
+    imageRef.current = null; // webcam frames aren't re-renderable on option change
+  }
+
+  useEffect(() => {
+    return () => stopCam();
+  }, [stopCam]);
 
   return (
     <div className="min-h-screen bg-[#1A0A2E] text-[#FEFEFE]">
@@ -174,6 +231,49 @@ export default function AsciiPage() {
             onChange={handleFileChange}
             className="hidden"
           />
+        </div>
+
+        {/* Webcam */}
+        <div className="mb-6 flex flex-col items-center gap-3">
+          {camStatus !== "granted" ? (
+            <button
+              type="button"
+              onClick={startCam}
+              className="rounded-full bg-gradient-to-r from-[#6BCB77] to-[#00ccff] px-6 py-2 font-bold text-black transition hover:opacity-90 active:scale-95 cursor-pointer"
+            >
+              📷 웹캠 시작
+            </button>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className="max-h-56 rounded-lg border border-white/20"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={captureFrame}
+                  className="rounded-full bg-gradient-to-r from-[#FF6B9D] to-[#FF8C42] px-6 py-2 font-bold text-black transition hover:opacity-90 active:scale-95 cursor-pointer"
+                >
+                  캡처
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCam}
+                  className="rounded-full bg-white/10 px-6 py-2 font-bold text-white/70 transition hover:bg-white/20 cursor-pointer"
+                >
+                  정지
+                </button>
+              </div>
+            </div>
+          )}
+          {camStatus === "denied" && (
+            <p className="max-w-md text-center text-sm text-[#FF6B9D]">
+              웹캠 권한이 거부되었습니다. 주소창 자물쇠 아이콘 → 카메라 허용 후 새로고침하세요.
+            </p>
+          )}
         </div>
 
         {/* Output */}
