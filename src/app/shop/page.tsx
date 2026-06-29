@@ -11,17 +11,30 @@ export default function Shop() {
         {/* Shop header */}
         <section className="relative z-10 pt-12 pb-10">
           <div className="flex items-center justify-between mb-8">
-            <Link
-              href="/"
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all hover:scale-105"
-              style={{
-                background: "#FF6B9D20",
-                color: "#FF6B9D",
-                border: "1px solid #FF6B9D50",
-              }}
-            >
-              ← Home
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all hover:scale-105"
+                style={{
+                  background: "#FF6B9D20",
+                  color: "#FF6B9D",
+                  border: "1px solid #FF6B9D50",
+                }}
+              >
+                ← Home
+              </Link>
+              <Link
+                href="/ascii"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all hover:scale-105"
+                style={{
+                  background: "#6BCB7720",
+                  color: "#6BCB77",
+                  border: "1px solid #6BCB7750",
+                }}
+              >
+                ASCII Oven 🍩
+              </Link>
+            </div>
             <div
               className="px-4 py-2 rounded-full border border-dashed border-[#FFD93D] text-sm"
               style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
