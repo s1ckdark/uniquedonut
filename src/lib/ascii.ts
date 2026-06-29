@@ -44,6 +44,9 @@ export function samplePixel(data: PixelData, x: number, y: number): Rgba {
 // Brightness ramp, dark -> light. 10 steps.
 const RAMP = " .:-=+*#%@";
 
+// Shade ramp for colorless block mode, dark -> light.
+const SHADE_RAMP = "█▓▒░ ";
+
 const ANSI = {
   reset: "\x1b[0m",
   fg: (r: number, g: number, b: number) => `\x1b[38;2;${r};${g};${b}m`,
@@ -86,12 +89,42 @@ function convertAscii(data: PixelData, options: AsciiOptions): string {
 }
 
 function convertBlock(data: PixelData, options: AsciiOptions): string {
-  void data;
-  void options;
-  return ""; // implemented in a later task
+  const { targetWidth, color } = options;
+  const colStep = data.width / targetWidth;
+  const cols = targetWidth;
+  // Each output row pairs two source rows (half-block top + bottom).
+  const rows = Math.max(1, Math.floor(data.height / colStep / 2));
+
+  const lines: string[] = [];
+  for (let row = 0; row < rows; row++) {
+    let line = "";
+    for (let col = 0; col < cols; col++) {
+      const top = samplePixel(data, col * colStep, row * 2 * colStep);
+      const bottom = samplePixel(data, col * colStep, (row * 2 + 1) * colStep);
+      if (color) {
+        line +=
+          ANSI.fg(top.r, top.g, top.b) +
+          ANSI.bg(bottom.r, bottom.g, bottom.b) +
+          "▀";
+      } else {
+        const lumTop = luminance(top.r, top.g, top.b, top.a);
+        const lumBot = luminance(bottom.r, bottom.g, bottom.b, bottom.a);
+        const avg = (lumTop + lumBot) / 2;
+        const idx = Math.min(
+          SHADE_RAMP.length - 1,
+          Math.max(0, Math.floor((avg / 255) * SHADE_RAMP.length)),
+        );
+        line += SHADE_RAMP[idx];
+      }
+    }
+    if (color) line += ANSI.reset;
+    lines.push(line);
+  }
+  return lines.join("\n");
 }
 
-/** Convert a pixel buffer to a TUI-art string. Pure: no DOM, no side effects. */
+/** Convert a pixel buffer to a TUI-art string. Pure: no DOM, no side effects.
+ * Callers (the page) clamp targetWidth via the slider min/max to bound memory. */
 export function convertImage(data: PixelData, options: AsciiOptions): string {
   return options.mode === "block"
     ? convertBlock(data, options)

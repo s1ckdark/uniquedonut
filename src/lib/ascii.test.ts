@@ -116,3 +116,51 @@ test("ASCII mode without color: no ANSI escape sequences", () => {
   });
   assert.ok(!out.includes("\x1b"), "no escape sequences expected");
 });
+
+test("block mode with color: emits half-block char with fg and bg ANSI", () => {
+  // 2x2: top row red, bottom row blue. One output char pairs them.
+  const pixels = new Uint8Array([
+    255, 0, 0, 255, 255, 0, 0, 255,
+    0, 0, 255, 255, 0, 0, 255, 255,
+  ]);
+  const out = convertImage(
+    { pixels, width: 2, height: 2 },
+    { mode: "block", color: true, targetWidth: 2 },
+  );
+  assert.ok(out.includes("▀"), "expected half-block glyph");
+  assert.ok(out.includes("\x1b[38;2;255;0;0m"), "expected red foreground (top)");
+  assert.ok(out.includes("\x1b[48;2;0;0;255m"), "expected blue background (bottom)");
+});
+
+test("block mode without color: solid black yields full blocks", () => {
+  const out = convertImage(solid(2, 2, 0, 0, 0), {
+    mode: "block",
+    color: false,
+    targetWidth: 2,
+  });
+  for (const line of out.split("\n")) {
+    assert.equal(line, "██");
+  }
+});
+
+test("block mode without color: solid white yields spaces (shade ramp brightest)", () => {
+  const out = convertImage(solid(2, 2, 255, 255, 255), {
+    mode: "block",
+    color: false,
+    targetWidth: 2,
+  });
+  for (const line of out.split("\n")) {
+    assert.equal(line, "  ");
+  }
+});
+
+test("block mode: two source rows collapse into one output row", () => {
+  // 4 rows tall -> block mode pairs 2 rows each -> 2 output rows
+  const out = convertImage(solid(2, 4, 128, 128, 128), {
+    mode: "block",
+    color: false,
+    targetWidth: 2,
+  });
+  const lines = out.split("\n");
+  assert.equal(lines.length, 2);
+});
