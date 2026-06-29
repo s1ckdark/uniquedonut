@@ -192,6 +192,16 @@ const allDonuts: Donut[] = [
     price: "$8.50",
     color: "#00ccff",
   },
+  {
+    slug: "ascii-oven",
+    name: "ASCII Oven",
+    description: "Bake photos into terminal art",
+    route: "/ascii",
+    category: "Chef's Special",
+    tags: ["Image", "Terminal"],
+    price: "$8.75",
+    color: "#6BCB77",
+  },
 ];
 
 export const categories: Category[] = [

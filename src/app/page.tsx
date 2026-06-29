@@ -73,7 +73,7 @@ export default function Home() {
         <div className="mt-16 flex items-center gap-3 opacity-50">
           <div className="h-0.5 w-12 rounded-full bg-[#FF6B9D]" />
           <span className="text-sm" style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}>
-            13 flavors available
+            20 flavors available
           </span>
           <div className="h-0.5 w-12 rounded-full bg-[#FFD93D]" />
         </div>
