@@ -202,6 +202,16 @@ const allDonuts: Donut[] = [
     price: "$8.75",
     color: "#6BCB77",
   },
+  {
+    slug: "weather-atelier",
+    name: "Weather Atelier",
+    description: "Landmarks painted in live weather, by two AIs",
+    route: "/weather",
+    category: "Chef's Special",
+    tags: ["Image", "AI"],
+    price: "$9.00",
+    color: "#00ccff",
+  },
 ];
 
 export const categories: Category[] = [
