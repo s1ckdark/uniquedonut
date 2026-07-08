@@ -66,3 +66,55 @@ export function buildPrompt(city: string, weather?: WeatherData): string {
   }
   return prompt;
 }
+
+/** BigDataCloud reverse geocode (client-side, no API key). Returns the
+ *  city/locality name in the requested language. `lang` defaults to "local"
+ *  (device locale) for native-language city names. */
+export interface GeoResult {
+  city: string;
+  countryName: string;
+}
+
+export async function fetchReverseGeocode(
+  lat: number,
+  lon: number,
+  lang: string = "local",
+): Promise<GeoResult> {
+  const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=${encodeURIComponent(lang)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`reverse geocode failed: ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    city?: string;
+    locality?: string;
+    principalSubdivision?: string;
+    countryName?: string;
+  };
+  const city = data.city || data.locality || data.principalSubdivision || "Unknown";
+  return { city, countryName: data.countryName ?? "" };
+}
+
+/** Open-Meteo current + daily forecast (no API key). Returns today's min/max
+ *  temperature (°C) and the current WMO weather code. */
+export async function fetchWeather(lat: number, lon: number): Promise<WeatherData> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=weather_code&daily=temperature_2m_max,temperature_2m_min` +
+    `&timezone=auto&forecast_days=1`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`weather fetch failed: ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    current?: { weather_code: number };
+    daily?: {
+      temperature_2m_max: number[];
+      temperature_2m_min: number[];
+    };
+  };
+  const wmoCode = data.current?.weather_code ?? 0;
+  const tempMaxC = data.daily?.temperature_2m_max?.[0] ?? 0;
+  const tempMinC = data.daily?.temperature_2m_min?.[0] ?? 0;
+  return { wmoCode, tempMaxC, tempMinC };
+}
