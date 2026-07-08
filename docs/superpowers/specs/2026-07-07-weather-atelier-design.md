@@ -17,7 +17,7 @@ for comparison.
 |---|---|
 | Output form | Image generation (isometric 3D landmark + weather) |
 | Providers compared | Gemini image vs GPT image (2-way). Anthropic/zai/local excluded — they can't generate images |
-| Location source | `navigator.geolocation` → Open-Meteo reverse geocoding → city name (native language) |
+| Location source | `navigator.geolocation` → BigDataCloud reverse geocoding (client-side, no key) → city name (native language) |
 | Weather source | Open-Meteo (no API key required) |
 | Prompt | User-supplied template with `{{current location}}` filled, plus explicit weather injected |
 | API call location | Server-side Route Handler (`/api/weather/generate`) — API keys must stay server-only |
@@ -113,8 +113,9 @@ makes the output reliable regardless of the model's web-search ability.
 
 1. Page loads → request geolocation (state machine:
    `idle | requesting | granted | denied`, same UX as `/visualizer`).
-2. On coords → `fetchReverseGeocode(lat, lon)` (Open-Meteo) → city name in
-   native language; `fetchWeather(lat, lon)` (Open-Meteo) → temp + WMO code.
+2. On coords → `fetchReverseGeocode(lat, lon)` (BigDataCloud reverse
+   geocode-client endpoint, no key) → city name in native language;
+   `fetchWeather(lat, lon)` (Open-Meteo, no key) → temp + WMO code.
    Both run client-side (no keys needed).
 3. User clicks "Generate" → `POST /api/weather/generate` with
    `{ city, lat, lon }`.
@@ -132,8 +133,11 @@ makes the output reliable regardless of the model's web-search ability.
 - `buildPrompt(city: string, weather: WeatherData): string` — fills the
   template + appends weather clause. Template stored as a module constant.
 - `fetchReverseGeocode(lat, lon)` / `fetchWeather(lat, lon)` — thin fetch
-  wrappers over Open-Meteo. These hit the network so they aren't unit-tested
-  directly; the pure transforms above are.
+  wrappers. `fetchReverseGeocode` calls BigDataCloud's client-side endpoint
+  (`https://api.bigdatacloud.net/data/reverse-geocode-client`) with
+  `localityLanguage=local` to get the native-language city name.
+  `fetchWeather` calls Open-Meteo. These hit the network so they aren't
+  unit-tested directly; the pure transforms above are.
 
 ```ts
 export interface WeatherData {
@@ -160,10 +164,17 @@ export interface ImageProvider {
 ```
 
 Two implementations:
-- **Gemini** (`GEMINI_API_KEY`): `gemini-2.5-flash-image` via
-  `generateContent`, response images extracted as base64.
-- **OpenAI** (`OPENAI_API_KEY`): `gpt-image-1` via `images.generate`,
-  base64 response.
+- **Gemini** (`GEMINI_API_KEY`): `gemini-3.1-flash-image` (Nano Banana 2,
+  the current recommended image model) via the Interactions API endpoint
+  `POST https://generativelanguage.googleapis.com/v1beta/interactions`. Request
+  body: `{ model, input, response_format: { type: "image", aspect_ratio: "9:16",
+  image_size: "1K" } }`. Image extracted from the JSON response's
+  `output_image.data` field as base64. Auth header `x-goog-api-key`.
+- **OpenAI** (`OPENAI_API_KEY`): `gpt-image-1` via
+  `POST https://api.openai.com/v1/images/generations`. Request body:
+  `{ model, prompt, size: "1024x1792" }` (1024×1792 ≈ 9:16). Image extracted
+  from `data[0].b64_json`. Auth header `Authorization: Bearer <key>`. Note:
+  `response_format` is not accepted by gpt-image-1 — it always returns b64_json.
 
 If a key is absent, the provider's `generate` returns
 `{ error: "API key not configured" }` rather than throwing — so the UI can
