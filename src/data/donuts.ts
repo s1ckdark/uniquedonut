@@ -212,6 +212,16 @@ const allDonuts: Donut[] = [
     price: "$9.00",
     color: "#00ccff",
   },
+  {
+    slug: "donut-math",
+    name: "Donut Math",
+    description: "Multiplication magic, one donut at a time",
+    route: "/math",
+    category: "Chef's Special",
+    tags: ["Math", "Kids"],
+    price: "$7.75",
+    color: "#FFD93D",
+  },
 ];
 
 export const categories: Category[] = [
