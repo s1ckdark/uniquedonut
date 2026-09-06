@@ -1,6 +1,7 @@
 "use client";
 
 import type { QuizQuestion } from "@/lib/math-quiz";
+import { DonutPlate } from "./DonutArt";
 
 interface QuizCardProps {
   question: QuizQuestion;
@@ -12,14 +13,9 @@ interface QuizCardProps {
 
 function DonutPlates({ plates, perPlate }: { plates: number; perPlate: number }) {
   return (
-    <div className="my-4 flex flex-col items-center gap-1">
+    <div className="my-4 flex flex-col items-start gap-2">
       {Array.from({ length: plates }).map((_, i) => (
-        <div key={i} className="flex items-center gap-1">
-          <span className="mr-1 text-xs text-white/40">접시 {i + 1}</span>
-          {Array.from({ length: perPlate }).map((_, j) => (
-            <span key={j} className="text-2xl">🍩</span>
-          ))}
-        </div>
+        <DonutPlate key={i} count={perPlate} label={`접시 ${i + 1}`} />
       ))}
     </div>
   );

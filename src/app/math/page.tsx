@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import QuizCard from "@/components/QuizCard";
+import { Donut } from "@/components/DonutArt";
 import { quizQuestions, TOTAL_QUESTIONS } from "@/lib/math-quiz";
 
 type Phase = "intro" | "quiz" | "results";
@@ -92,7 +93,9 @@ export default function MathPage() {
 
         {phase === "intro" && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-            <p className="text-5xl">🍩</p>
+            <div className="animate-glow mx-auto w-fit">
+              <Donut size={140} />
+            </div>
             <p
               className="mt-4 text-2xl font-bold"
               style={{ fontFamily: "'Fredoka', cursive" }}
