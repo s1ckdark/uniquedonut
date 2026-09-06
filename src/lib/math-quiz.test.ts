@@ -4,6 +4,8 @@ import {
   evaluateExpression,
   evaluateEquation,
   validateQuestions,
+  quizQuestions,
+  TOTAL_QUESTIONS,
   type QuizQuestion,
 } from "./math-quiz";
 
@@ -87,4 +89,28 @@ test("validateQuestions: rejects explanation equation that is false", () => {
   const q = goodQuestion();
   q.explanation.equation = "2 + 2 + 2 = 7";
   assert.ok(validateQuestions([q]).length > 0);
+});
+
+test("shipped quiz data passes the validator", () => {
+  assert.deepEqual(validateQuestions(quizQuestions), []);
+});
+
+test("shipped quiz has 8 questions covering all four kinds twice", () => {
+  assert.equal(quizQuestions.length, TOTAL_QUESTIONS);
+  assert.equal(TOTAL_QUESTIONS, 8);
+  const counts = new Map<string, number>();
+  for (const q of quizQuestions) {
+    counts.set(q.kind, (counts.get(q.kind) ?? 0) + 1);
+  }
+  assert.equal(counts.get("to-addition"), 2);
+  assert.equal(counts.get("to-multiplication"), 2);
+  assert.equal(counts.get("picture"), 2);
+  assert.equal(counts.get("commutative"), 2);
+});
+
+test("picture questions carry plate data for the visual", () => {
+  for (const q of quizQuestions.filter((item) => item.kind === "picture")) {
+    assert.ok(q.explanation.plates && q.explanation.plates > 0);
+    assert.ok(q.explanation.perPlate && q.explanation.perPlate > 0);
+  }
 });
