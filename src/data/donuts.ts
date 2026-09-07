@@ -222,6 +222,16 @@ const allDonuts: Donut[] = [
     price: "$7.75",
     color: "#FFD93D",
   },
+  {
+    slug: "data-pipeline",
+    name: "Data Pipeline",
+    description: "Donut data flowing through five stages",
+    route: "/pipeline",
+    category: "Chef's Special",
+    tags: ["Data", "Diagram"],
+    price: "$8.00",
+    color: "#00ccff",
+  },
 ];
 
 export const categories: Category[] = [
