@@ -2,6 +2,7 @@ import Link from "next/link";
 import { categories } from "@/data/donuts";
 import MenuBoard from "@/components/MenuBoard";
 import Sprinkles from "@/components/Sprinkles";
+import GinoMenu from "@/components/GinoMenu";
 
 export default function Shop() {
   return (
@@ -34,6 +35,7 @@ export default function Shop() {
               >
                 ASCII Oven 🍩
               </Link>
+              <GinoMenu />
             </div>
             <div
               className="px-4 py-2 rounded-full border border-dashed border-[#FFD93D] text-sm"

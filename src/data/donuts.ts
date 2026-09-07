@@ -258,3 +258,8 @@ export function getDonutBySlug(slug: string): Donut | undefined {
 export function getAllSlugs(): string[] {
   return allDonuts.map((d) => d.slug);
 }
+
+/** Demos that live on their own route (drive the gino quick-nav menu). */
+export function getRouteDemos(): Donut[] {
+  return allDonuts.filter((d) => d.route);
+}
