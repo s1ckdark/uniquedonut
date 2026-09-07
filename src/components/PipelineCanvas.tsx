@@ -40,8 +40,13 @@ export default function PipelineCanvas({
       const parent = canvas.parentElement;
       if (!parent) return;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = parent.offsetWidth * dpr;
-      canvas.height = parent.offsetHeight * dpr;
+      const w = parent.offsetWidth * dpr;
+      const h = parent.offsetHeight * dpr;
+      // Assigning canvas.width/height (even the same value) resets the
+      // bitmap — only assign when the size actually changed so pausing
+      // doesn't wipe the frozen frame.
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
     };
     resize();
     window.addEventListener("resize", resize);
