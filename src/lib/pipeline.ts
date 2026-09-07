@@ -87,3 +87,76 @@ export const stages: PipelineStage[] = [
     },
   },
 ];
+
+export const MAX_PARTICLES = 40;
+export const SEGMENT_COUNT = stages.length - 1;
+
+export interface Particle {
+  id: number;
+  segment: number; // 0..SEGMENT_COUNT-1
+  t: number; // 0..1 progress within the segment
+  speed: number; // progress per second
+}
+
+/** Cubic bezier between two points. Control points sit at 35%/65% along
+ *  the segment, each offset 0.15×length along the normal — a gentle bow
+ *  that reads well horizontally and vertically. */
+export function positionOnSegment(from: Point, to: Point, t: number): Point {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len;
+  const ny = dx / len;
+  const bow = 0.15 * len;
+  const cp1 = {
+    x: from.x + dx * 0.35 + nx * bow,
+    y: from.y + dy * 0.35 + ny * bow,
+  };
+  const cp2 = {
+    x: from.x + dx * 0.65 + nx * bow,
+    y: from.y + dy * 0.65 + ny * bow,
+  };
+  const u = 1 - t;
+  return {
+    x:
+      u * u * u * from.x +
+      3 * u * u * t * cp1.x +
+      3 * u * t * t * cp2.x +
+      t * t * t * to.x,
+    y:
+      u * u * u * from.y +
+      3 * u * u * t * cp1.y +
+      3 * u * t * t * cp2.y +
+      t * t * t * to.y,
+  };
+}
+
+/** Advance one particle by dtMs. Returns null when it passes the last stage. */
+export function advanceParticle(p: Particle, dtMs: number): Particle | null {
+  const t = p.t + p.speed * (dtMs / 1000);
+  if (t < 1) return { ...p, t };
+  const nextSegment = p.segment + 1;
+  if (nextSegment > SEGMENT_COUNT - 1) return null;
+  return { ...p, segment: nextSegment, t: t - 1 };
+}
+
+/** Advance all particles, optionally spawn one, enforce the cap. */
+export function updateParticles(
+  particles: Particle[],
+  dtMs: number,
+  spawn: Particle | null,
+): Particle[] {
+  const advanced = particles
+    .map((p) => advanceParticle(p, dtMs))
+    .filter((p): p is Particle => p !== null);
+  const withSpawn = spawn ? [...advanced, spawn] : advanced;
+  return withSpawn.slice(0, MAX_PARTICLES);
+}
+
+export function makeParticle(id: number): Particle {
+  return { id, segment: 0, t: 0, speed: 0.5 + Math.random() * 0.3 };
+}
+
+export function nextSpawnDelayMs(): number {
+  return 400 + Math.random() * 600;
+}
