@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { getRouteDemos } from "@/data/donuts";
+import { ginoContents } from "@/data/gino";
 
 export default function GinoMenu() {
   const [open, setOpen] = useState(false);
-  const demos = getRouteDemos();
 
   return (
     <div className="relative">
@@ -34,17 +33,20 @@ export default function GinoMenu() {
       </button>
       {open && (
         <div className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-white/10 bg-[#241040] py-1 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          {demos.map((demo) => (
+          <p className="px-4 pb-1 pt-2 text-xs font-bold uppercase tracking-widest text-white/30">
+            🎓 Gino's Learning
+          </p>
+          {ginoContents.map((item) => (
             <Link
-              key={demo.slug}
-              href={demo.route!}
+              key={item.slug}
+              href={item.href}
               onClick={() => setOpen(false)}
-              className="flex items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/10"
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors hover:bg-white/10"
             >
-              <span className="font-bold" style={{ color: demo.color }}>
-                {demo.name}
+              <span className="text-lg">{item.emoji}</span>
+              <span className="font-bold" style={{ color: item.color }}>
+                {item.name}
               </span>
-              <span className="text-xs text-white/30">{demo.price}</span>
             </Link>
           ))}
         </div>
