@@ -4,10 +4,17 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import TidesSpace from "@/components/TidesSpace";
 import TidesBeach from "@/components/TidesBeach";
-import { tideAmplitude, tideHeight, tideState } from "@/lib/tides";
+import {
+  A_SUN,
+  combinedTideHeight,
+  springNeap,
+  tideAmplitude,
+  tideState,
+} from "@/lib/tides";
 
 export default function TidesPage() {
   const [angleDeg, setAngleDeg] = useState(0);
+  const [sunAngleDeg, setSunAngleDeg] = useState(0);
   const [distMult, setDistMult] = useState(1);
   const [playing, setPlaying] = useState(true);
 
@@ -33,10 +40,12 @@ export default function TidesPage() {
   }, [playing]);
 
   const moonAngle = (angleDeg * Math.PI) / 180;
+  const sunAngle = (sunAngleDeg * Math.PI) / 180;
   // Harbor sits at screen angle 0 (top); cos is even so sign of diff is moot.
-  const h = tideHeight(-moonAngle, distMult);
-  const u = h / tideAmplitude(distMult);
+  const h = combinedTideHeight(0, moonAngle, sunAngle, distMult);
+  const u = h / (tideAmplitude(distMult) + A_SUN);
   const state = tideState(u, prevURef.current);
+  const sn = springNeap(angleDeg, sunAngleDeg);
   useEffect(() => {
     prevURef.current = u;
   }, [u]);
@@ -81,7 +90,7 @@ export default function TidesPage() {
         </header>
 
         {/* Sliders */}
-        <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 sm:grid-cols-2">
+        <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 sm:grid-cols-3">
           <label className="flex items-center gap-3">
             <span className="w-20 shrink-0 text-sm font-bold text-white/70">
               달 위치
@@ -97,6 +106,20 @@ export default function TidesPage() {
                 setAngleDeg(Number(e.target.value));
               }}
               className="w-full accent-[#00ccff] cursor-pointer"
+            />
+          </label>
+          <label className="flex items-center gap-3">
+            <span className="w-20 shrink-0 text-sm font-bold text-white/70">
+              태양 위치
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={1}
+              value={Math.round(sunAngleDeg)}
+              onChange={(e) => setSunAngleDeg(Number(e.target.value))}
+              className="w-full accent-[#FF8C42] cursor-pointer"
             />
           </label>
           <label className="flex items-center gap-3">
@@ -118,13 +141,17 @@ export default function TidesPage() {
         {/* Views */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-black/30 p-3">
-            <TidesSpace moonAngleDeg={angleDeg} moonDistMult={distMult} />
+            <TidesSpace
+              moonAngleDeg={angleDeg}
+              sunAngleDeg={sunAngleDeg}
+              moonDistMult={distMult}
+            />
             <p className="pb-1 text-center text-xs text-white/40">
               우주에서 보기
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-[#0d1b3e] p-3">
-            <TidesBeach h={h} />
+            <TidesBeach h={h} sunAngleDeg={sunAngleDeg} />
             <p className="pb-1 text-center text-xs text-white/40">
               도넛항 해변에서 보기
             </p>
@@ -144,6 +171,16 @@ export default function TidesPage() {
             지금 도넛항은 {state.label}!
           </p>
           <p className="mt-1 text-white/70">{state.description}</p>
+          <p
+            className="mt-3 inline-block rounded-full px-4 py-1 text-sm font-bold"
+            style={{
+              background: "rgba(255,140,66,0.15)",
+              color: "#FF8C42",
+              border: "1px solid rgba(255,140,66,0.4)",
+            }}
+          >
+            {sn.emoji} 오늘은 {sn.label} — {sn.description}
+          </p>
           {/* level gauge */}
           <div className="mx-auto mt-4 h-3 w-56 overflow-hidden rounded-full bg-white/10">
             <div
@@ -174,6 +211,13 @@ export default function TidesPage() {
           <p className="mt-2 leading-relaxed text-white/60">
             달 거리 슬라이더를 움직여 보세요 — 달이 가까워지면 당기는 힘이 훨씬
             세져서 물 때가 훨씬 커져요. 🌊
+          </p>
+          <p className="mt-2 leading-relaxed text-white/85">
+            그럼 <b className="text-[#FF8C42]">태양</b>은요? 태양도 바닷물을
+            조금씩 잡아당겨요 (달의 절반 조금 못 미쳐!). 달과 태양이{" "}
+            <b>한 줄로 서면 사리</b> — 두 힘이 합쳐 물때가 아주 커지고,{" "}
+            <b>직각이면 조금</b> — 두 힘이 부딪혀 물때가 잔잔해져요. 태양
+            슬라이더를 돌려 확인해 보세요! ☀️
           </p>
         </section>
       </main>
