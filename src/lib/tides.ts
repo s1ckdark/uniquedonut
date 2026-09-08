@@ -18,6 +18,66 @@ export function tideHeight(phi: number, moonDist: number): number {
   return tideAmplitude(moonDist) * ((3 * c * c - 1) / 2);
 }
 
+/** The sun's tidal amplitude relative to the moon at D_REF (~46%). */
+export const A_SUN = 0.46;
+
+/** Solar tide at angle difference phi (radians) from the sun. */
+export function sunTideHeight(phi: number): number {
+  const c = Math.cos(phi);
+  return A_SUN * ((3 * c * c - 1) / 2);
+}
+
+/** Total tide at a point: lunar + solar contributions. */
+export function combinedTideHeight(
+  pointAngleRad: number,
+  moonAngleRad: number,
+  sunAngleRad: number,
+  moonDist: number,
+): number {
+  return (
+    tideHeight(pointAngleRad - moonAngleRad, moonDist) +
+    sunTideHeight(pointAngleRad - sunAngleRad)
+  );
+}
+
+export interface SpringNeap {
+  key: "spring" | "neap" | "mid";
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+/** Classify sun-moon alignment: aligned → spring tide, quadrature → neap. */
+export function springNeap(
+  moonAngleDeg: number,
+  sunAngleDeg: number,
+): SpringNeap {
+  let delta = Math.abs(moonAngleDeg - sunAngleDeg) % 360;
+  if (delta > 180) delta = 360 - delta;
+  if (delta <= 30 || delta >= 150) {
+    return {
+      key: "spring",
+      label: "사리",
+      emoji: "🌊",
+      description: "달과 태양이 줄을 서서 물때가 가장 커요!",
+    };
+  }
+  if (delta >= 60 && delta <= 120) {
+    return {
+      key: "neap",
+      label: "조금",
+      emoji: "🫧",
+      description: "달과 태양이 직각이라 물때가 잔잔해요.",
+    };
+  }
+  return {
+    key: "mid",
+    label: "보통",
+    emoji: "🌤️",
+    description: "사리와 조금 사이의 평범한 물때예요.",
+  };
+}
+
 export interface TideState {
   label: string;
   emoji: string;
