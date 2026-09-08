@@ -49,6 +49,57 @@ body {
   animation: shake 0.4s ease-in-out;
 }
 
+/* Sap tree scene motions */
+@keyframes flutter {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.25); }
+}
+
+.animate-flutter {
+  animation: flutter 0.9s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes hover-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-hover {
+  animation: hover-float 2.2s ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+@keyframes sap-drip {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 0.9; }
+  100% { transform: translateY(46px); opacity: 0; }
+}
+
+.animate-drip {
+  animation: sap-drip 2.4s linear infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+.animate-twinkle {
+  animation: twinkle 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-flutter,
+  .animate-hover,
+  .animate-drip,
+  .animate-twinkle {
+    animation: none;
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

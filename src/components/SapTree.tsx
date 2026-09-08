@@ -17,6 +17,7 @@ const SPOTS: Record<SapGuestId, { x: number; y: number }> = {
   rhino: { x: 152, y: 168 },
   butterfly: { x: 210, y: 88 },
   hornet: { x: 60, y: 196 },
+  "giant-hornet": { x: 222, y: 168 },
 };
 
 function MiniStag() {
@@ -65,11 +66,33 @@ function MiniHornet() {
   );
 }
 
-const GUESTS: { id: SapGuestId; label: string; art: React.ReactNode }[] = [
+// The giant hornet: noticeably bigger, with the famous orange head.
+function MiniGiantHornet() {
+  return (
+    <g>
+      <ellipse cx={2} cy={0} rx={22} ry={10} fill="#3A2A18" />
+      <line x1={-6} y1={-9.5} x2={-6} y2={9.5} stroke="#FF8C42" strokeWidth={5} />
+      <line x1={4} y1={-9.5} x2={4} y2={9.5} stroke="#FF8C42" strokeWidth={5} />
+      <line x1={14} y1={-8} x2={14} y2={8} stroke="#FF8C42" strokeWidth={4} />
+      <circle cx={-21} cy={-1} r={8} fill="#FF8C42" />
+      <circle cx={-25} cy={-2} r={1.6} fill="#1A0A2E" />
+      <ellipse cx={0} cy={-13} rx={12} ry={6} fill="#FEFEFE" opacity={0.5} transform="rotate(-18 0 -13)" />
+      <line x1={16} y1={2} x2={28} y2={6} stroke="#3A2A18" strokeWidth={3} strokeLinecap="round" />
+    </g>
+  );
+}
+
+const GUESTS: {
+  id: SapGuestId;
+  label: string;
+  art: React.ReactNode;
+  motion?: string; // CSS animation class for the inner art group
+}[] = [
   { id: "stag", label: "사슴벌레", art: <MiniStag /> },
   { id: "rhino", label: "장수풍뎅이", art: <MiniRhino /> },
-  { id: "butterfly", label: "나비", art: <MiniButterfly /> },
-  { id: "hornet", label: "말벌", art: <MiniHornet /> },
+  { id: "butterfly", label: "나비", art: <MiniButterfly />, motion: "animate-flutter" },
+  { id: "hornet", label: "말벌", art: <MiniHornet />, motion: "animate-hover" },
+  { id: "giant-hornet", label: "장수말벌", art: <MiniGiantHornet />, motion: "animate-hover" },
 ];
 
 export default function SapTree({ selected, onSelect }: SapTreeProps) {
@@ -84,8 +107,9 @@ export default function SapTree({ selected, onSelect }: SapTreeProps) {
       <rect width={280} height={260} rx={14} fill="#0d1030" />
       <circle cx={246} cy={30} r={12} fill="#FEFEFE" opacity={0.85} />
       <circle cx={238} cy={27} r={10} fill="#0d1030" />
-      <text x={30} y={30} fontSize={7} fill="#FEFEFE">✦</text>
-      <text x={200} y={60} fontSize={6} fill="#FEFEFE">✦</text>
+      <text x={30} y={30} fontSize={7} fill="#FEFEFE" className="animate-twinkle">✦</text>
+      <text x={200} y={60} fontSize={6} fill="#FEFEFE" className="animate-twinkle" style={{ animationDelay: "0.7s" }}>✦</text>
+      <text x={64} y={58} fontSize={5} fill="#FEFEFE" className="animate-twinkle" style={{ animationDelay: "1.2s" }}>✦</text>
 
       {/* trunk */}
       <path
@@ -110,9 +134,11 @@ export default function SapTree({ selected, onSelect }: SapTreeProps) {
         opacity={0.95}
       />
       <circle cx={133} cy={58} r={5} fill="#FFC94D" />
+      {/* a droplet runs down the sap, over and over */}
+      <circle cx={135} cy={54} r={3.5} fill="#FFC94D" className="animate-drip" />
 
       {/* guests */}
-      {GUESTS.map(({ id, label, art }) => {
+      {GUESTS.map(({ id, label, art, motion }) => {
         const { x, y } = SPOTS[id];
         const isSel = selected === id;
         return (
@@ -130,7 +156,7 @@ export default function SapTree({ selected, onSelect }: SapTreeProps) {
           >
             {isSel && (
               <circle
-                r={30}
+                r={id === "giant-hornet" ? 38 : 30}
                 fill="none"
                 stroke="#FFD93D"
                 strokeWidth={2.5}
@@ -138,7 +164,7 @@ export default function SapTree({ selected, onSelect }: SapTreeProps) {
                 opacity={0.9}
               />
             )}
-            {art}
+            <g className={motion}>{art}</g>
           </g>
         );
       })}
