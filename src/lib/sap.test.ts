@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sapGuests, beetleDifferences } from "./sap";
 
-test("sapGuests: four unique guests with filled fields", () => {
-  assert.equal(sapGuests.length, 4);
+test("sapGuests: five unique guests with filled fields", () => {
+  assert.equal(sapGuests.length, 5);
   const ids = new Set(sapGuests.map((g) => g.id));
-  assert.equal(ids.size, 4);
+  assert.equal(ids.size, 5);
   for (const g of sapGuests) {
     assert.ok(g.name.length > 0);
     assert.ok(g.what.length > 10);
@@ -13,10 +13,11 @@ test("sapGuests: four unique guests with filled fields", () => {
   }
 });
 
-test("sapGuests: includes the two beetle stars", () => {
+test("sapGuests: includes the two beetle stars and the giant hornet", () => {
   const ids = sapGuests.map((g) => g.id);
   assert.ok(ids.includes("stag"));
   assert.ok(ids.includes("rhino"));
+  assert.ok(ids.includes("giant-hornet"));
 });
 
 test("beetleDifferences: four parts with complete text", () => {

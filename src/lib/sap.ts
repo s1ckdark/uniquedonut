@@ -1,7 +1,12 @@
 // Sap-tree learning content: the guests at a summer-night sap tree and the
 // stag-vs-rhino beetle differences. Pure module — no DOM, no React.
 
-export type SapGuestId = "stag" | "rhino" | "butterfly" | "hornet";
+export type SapGuestId =
+  | "stag"
+  | "rhino"
+  | "butterfly"
+  | "hornet"
+  | "giant-hornet";
 
 export interface SapGuest {
   id: SapGuestId;
@@ -39,6 +44,13 @@ export const sapGuests: SapGuest[] = [
     emoji: "🐝",
     what: "수액의 단물이 좋아 날아들어요. 사슴벌레와 실갱이를 벌이기도!",
     funFact: "수액에 흠뻑 취한 말벌은 의외로 얌전해진대요.",
+  },
+  {
+    id: "giant-hornet",
+    name: "장수말벌",
+    emoji: "🐝",
+    what: "세계에서 가장 큰 말벌! 큰 턱으로 수액도 실컷 마셔요.",
+    funFact: "다른 벌들의 천적이에요. 벌집을 습격해 애벌레를 가져가요!",
   },
 ];
 
