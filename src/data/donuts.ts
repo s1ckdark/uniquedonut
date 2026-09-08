@@ -232,6 +232,16 @@ const allDonuts: Donut[] = [
     price: "$8.00",
     color: "#00ccff",
   },
+  {
+    slug: "phone-lab",
+    name: "Phone Size Lab",
+    description: "Compare phone sizes in real 3D",
+    route: "/phones",
+    category: "Chef's Special",
+    tags: ["3D", "Tool"],
+    price: "$8.50",
+    color: "#00ccff",
+  },
 ];
 
 export const categories: Category[] = [
