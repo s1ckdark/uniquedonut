@@ -17,4 +17,11 @@ export const ginoContents: GinoContent[] = [
     emoji: "🍩",
     color: "#FFD93D",
   },
+  {
+    slug: "moon-tides",
+    name: "달과 바다",
+    href: "/tides",
+    emoji: "🌊",
+    color: "#00ccff",
+  },
 ];
