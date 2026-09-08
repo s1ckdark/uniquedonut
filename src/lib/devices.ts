@@ -136,11 +136,7 @@ export const devices: Device[] = [
   },
 ];
 
-export const DEFAULT_SELECTION = [
-  "iphone-16-pro-max",
-  "galaxy-s25-ultra",
-  "pixel-9-pro-xl",
-];
+export const DEFAULT_SELECTION = ["iphone-16-pro-max", "galaxy-s25-ultra"];
 
 /** Validate device data integrity. Returns violations; empty = valid. */
 export function validateDevices(list: Device[]): string[] {
