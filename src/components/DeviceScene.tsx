@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { ContactShadows, OrbitControls } from "@react-three/drei";
+import { ContactShadows, Html, OrbitControls } from "@react-three/drei";
 import DeviceModel from "./DeviceModel";
 import type { Device } from "@/lib/devices";
 
@@ -57,6 +57,21 @@ export default function DeviceScene({
       {selected.map((device, i) => (
         <group key={device.slug} position={[positions[i], 0, 0]}>
           <DeviceModel device={device} />
+          {/* name label under the device; pointer-events off so drags
+              pass through to the OrbitControls */}
+          <Html position={[0, -14, 0]} center style={{ pointerEvents: "none" }}>
+            <div className="whitespace-nowrap text-center select-none">
+              <div
+                className="text-xs font-bold"
+                style={{ color: device.color }}
+              >
+                {device.name}
+              </div>
+              <div className="font-mono text-[10px] leading-tight text-white/50">
+                {device.widthMm}×{device.heightMm}×{device.depthMm}
+              </div>
+            </div>
+          </Html>
         </group>
       ))}
 
