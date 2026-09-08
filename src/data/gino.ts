@@ -24,4 +24,11 @@ export const ginoContents: GinoContent[] = [
     emoji: "🌊",
     color: "#00ccff",
   },
+  {
+    slug: "mantis-diary",
+    name: "사마귀 관찰",
+    href: "/mantis",
+    emoji: "🦗",
+    color: "#6BCB77",
+  },
 ];
