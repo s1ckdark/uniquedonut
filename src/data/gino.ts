@@ -42,4 +42,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🦀",
     color: "#FF8C42",
   },
+  {
+    slug: "sap-tree",
+    name: "수액 나무 친구들",
+    description: "여름밤 나무 식당에 모이는 곤충들",
+    href: "/sap",
+    emoji: "🪲",
+    color: "#FF6B9D",
+  },
 ];
