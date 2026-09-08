@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import DeviceScene from "@/components/DeviceScene";
+import ActualSize from "@/components/ActualSize";
 import {
   devices as curated,
   DEFAULT_SELECTION,
@@ -217,6 +218,9 @@ export default function PhonesPage() {
             🩷 해당 열의 최대값 하이라이트
           </p>
         </div>
+
+        {/* actual size */}
+        <ActualSize selected={selected} />
 
         {/* custom form */}
         <div className="mt-6 rounded-2xl border border-[#FFD93D]/30 bg-[#FFD93D]/10 p-5">
