@@ -25,12 +25,14 @@ test("shipped device data passes the validator", () => {
   assert.deepEqual(validateDevices(devices), []);
 });
 
-test("shipped data has 12 devices covering Apple, Samsung, Google", () => {
-  assert.equal(devices.length, 12);
+test("shipped data has 16 devices covering Apple, Samsung, Google, Minimal, Unihertz", () => {
+  assert.equal(devices.length, 16);
   const brands = new Set(devices.map((d) => d.brand));
   assert.ok(brands.has("Apple"));
   assert.ok(brands.has("Samsung"));
   assert.ok(brands.has("Google"));
+  assert.ok(brands.has("Minimal"));
+  assert.ok(brands.has("Unihertz"));
 });
 
 test("validator rejects negative or zero dimensions", () => {
