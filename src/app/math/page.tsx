@@ -59,10 +59,10 @@ export default function MathPage() {
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <Link
-            href="/shop"
+            href="/gino"
             className="rounded-full bg-[#FF6B9D]/15 px-4 py-2 text-sm font-bold text-[#FF6B9D] transition hover:scale-105"
           >
-            ← Shop
+            ← Gino
           </Link>
           {phase === "quiz" && (
             <span className="font-mono text-sm text-white/50">
