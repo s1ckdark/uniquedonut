@@ -31,4 +31,11 @@ export const ginoContents: GinoContent[] = [
     emoji: "🦗",
     color: "#6BCB77",
   },
+  {
+    slug: "crab-life",
+    name: "꽃게의 일생",
+    href: "/crab",
+    emoji: "🦀",
+    color: "#FF8C42",
+  },
 ];
