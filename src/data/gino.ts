@@ -50,4 +50,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🪲",
     color: "#FF6B9D",
   },
+  {
+    slug: "cold-story",
+    name: "감기 이야기",
+    description: "몸속에서 벌어지는 감기 전쟁",
+    href: "/cold",
+    emoji: "🤧",
+    color: "#9b5de5",
+  },
 ];
