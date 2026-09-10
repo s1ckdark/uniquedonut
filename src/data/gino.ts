@@ -58,4 +58,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🤧",
     color: "#9b5de5",
   },
+  {
+    slug: "shot-shield",
+    name: "주사와 방패",
+    description: "주사와 예방주사의 비밀",
+    href: "/shot",
+    emoji: "💉",
+    color: "#4895ef",
+  },
 ];
