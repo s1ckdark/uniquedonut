@@ -13,7 +13,7 @@ const CELL_STROKE = "#c3c3d1";
 const MACRO = "#e6e6f0";
 
 /** Spiky virus ball centered at (0,0), radius r. */
-function Virus({ r = 14 }: { r?: number }) {
+export function Virus({ r = 14 }: { r?: number }) {
   return (
     <g>
       {Array.from({ length: 8 }).map((_, i) => {
@@ -35,7 +35,7 @@ function Virus({ r = 14 }: { r?: number }) {
 }
 
 /** Pale white cell with a determined face. */
-function WhiteCell({ angry = false }: { angry?: boolean }) {
+export function WhiteCell({ angry = false }: { angry?: boolean }) {
   return (
     <g>
       <circle r={20} fill={WHITE_CELL} stroke={CELL_STROKE} strokeWidth={2.5} />
@@ -54,7 +54,7 @@ function WhiteCell({ angry = false }: { angry?: boolean }) {
 }
 
 /** Big macrophage with an open mouth. */
-function Macrophage() {
+export function Macrophage() {
   return (
     <g>
       <circle r={34} fill={MACRO} stroke={CELL_STROKE} strokeWidth={3} />
@@ -68,7 +68,7 @@ function Macrophage() {
 }
 
 /** Red blood cell: red disc with an O2 backpack. */
-function RedCell({ scale = 1 }: { scale?: number }) {
+export function RedCell({ scale = 1 }: { scale?: number }) {
   return (
     <g transform={`scale(${scale})`}>
       <rect x={-30} y={-26} width={13} height={17} rx={3} fill="#FFD93D" />
@@ -84,7 +84,7 @@ function RedCell({ scale = 1 }: { scale?: number }) {
 }
 
 /** Y-shaped antibody. */
-function Antibody({ rot = 0 }: { rot?: number }) {
+export function Antibody({ rot = 0 }: { rot?: number }) {
   return (
     <g transform={`rotate(${rot})`}>
       <line x1={0} y1={6} x2={0} y2={-4} stroke="#00ccff" strokeWidth={5} strokeLinecap="round" />
