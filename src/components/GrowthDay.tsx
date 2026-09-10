@@ -71,8 +71,8 @@ export default function GrowthDay({ bedHour }: { bedHour: number }) {
 
       {/* axis */}
       <line x1={PAD.left} y1={PAD.top + PLOT_H} x2={PAD.left + PLOT_W} y2={PAD.top + PLOT_H} stroke="#FEFEFE" strokeWidth={1} opacity={0.4} />
-      {hourMarks.map((h) => (
-        <text key={h} x={xOf(h)} y={H - 10} textAnchor="middle" fontSize={9} fill="#FEFEFE" opacity={0.6}>
+      {hourMarks.map((h, i) => (
+        <text key={`${h}-${i}`} x={xOf(h)} y={H - 10} textAnchor="middle" fontSize={9} fill="#FEFEFE" opacity={0.6}>
           {h === 0 ? "12" : h > 12 ? `${h - 12}` : `${h}`}
         </text>
       ))}
