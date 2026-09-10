@@ -66,4 +66,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "💉",
     color: "#4895ef",
   },
+  {
+    slug: "sleep-grow",
+    name: "키 크는 잠",
+    description: "성장호르몬과 잠의 마법",
+    href: "/growth",
+    emoji: "😴",
+    color: "#f4a261",
+  },
 ];
