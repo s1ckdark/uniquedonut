@@ -242,6 +242,16 @@ const allDonuts: Donut[] = [
     price: "$8.50",
     color: "#00ccff",
   },
+  {
+    slug: "warming-sea",
+    name: "Warming Sea",
+    description: "Jeju's sea, three years of change",
+    route: "/sea",
+    category: "Chef's Special",
+    tags: ["Data", "Ocean"],
+    price: "$8.00",
+    color: "#2fae9d",
+  },
 ];
 
 export const categories: Category[] = [
