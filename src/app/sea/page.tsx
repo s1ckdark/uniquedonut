@@ -6,7 +6,12 @@ import JejuSeaMap from "@/components/JejuSeaMap";
 import { fishForStageIndex, yearlyAverages, type DailyRow } from "@/lib/sea";
 
 function iso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Local date parts — toISOString() would shift KST midnight back a day
+  // into the previous year (UTC).
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function SeaPage() {
