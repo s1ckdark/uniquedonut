@@ -159,6 +159,22 @@ export default function SeaPage() {
                     fish={fishForStageIndex(effectiveIndex)}
                   />
                 </div>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-5 text-xs text-white/70">
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-1.5 w-7 rounded-full"
+                      style={{ background: "#FF8C42" }}
+                    />
+                    난류 — 따뜻한 물이 흘러와요
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-1.5 w-7 rounded-full"
+                      style={{ background: "#7cc7ff" }}
+                    />
+                    한류 — 차가운 물이 흘러와요
+                  </span>
+                </div>
               </div>
 
               {/* right column: verdict + trend + fish */}
@@ -290,6 +306,16 @@ export default function SeaPage() {
                 따뜻한 제주 바다에서 변화가 가장 먼저 나타나요 — 시원한 바다를
                 좋아하던 친구들은 떠나고, 따뜻한 바다를 좋아하는 새 친구들이
                 찾아와요.
+              </p>
+              <p className="mt-2 leading-relaxed text-white/85">
+                바다의 온도는 <b className="text-[#FF8C42]">해류</b>가 크게
+                바꿔요! 지도에 흐르는 줄이 바로 해류예요.{" "}
+                <b className="text-[#FF8C42]">대마난류</b>와{" "}
+                <b className="text-[#FF8C42]">황해난류</b>는 따뜻한 물을 실어
+                와 제주 바다를 데워주고,{" "}
+                <b className="text-[#7cc7ff]">중국연안류</b>는 차가운 물을
+                가져와 서남쪽 바다를 식혀요. 해류가 만나는 곳이 바로 물고기들이
+                모이는 좋은 낚시터가 되기도 해요! 🎣
               </p>
               <p className="mt-2 leading-relaxed text-white/60">
                 등고선을 따라 색이 해마다 따뜻해지는 것을 눈으로 확인해

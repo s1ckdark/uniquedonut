@@ -45,6 +45,9 @@ const FISH_SPOTS = [
   { x: 66, y: 146 },
 ];
 
+const WARM_CURRENT = "#FF8C42";
+const COLD_CURRENT = "#7cc7ff";
+
 export default function JejuSeaMap({
   yearAvg,
   fish,
@@ -110,6 +113,71 @@ export default function JejuSeaMap({
           </text>
         );
       })}
+
+      {/* ocean currents — animated flowing dashes with arrowheads */}
+      <defs>
+        <marker
+          id="cur-warm"
+          markerWidth="7"
+          markerHeight="7"
+          refX="5"
+          refY="3.5"
+          orient="auto"
+        >
+          <path d="M0,0 L7,3.5 L0,7 Z" fill={WARM_CURRENT} />
+        </marker>
+        <marker
+          id="cur-cold"
+          markerWidth="7"
+          markerHeight="7"
+          refX="5"
+          refY="3.5"
+          orient="auto"
+        >
+          <path d="M0,0 L7,3.5 L0,7 Z" fill={COLD_CURRENT} />
+        </marker>
+      </defs>
+      <g fill="none" strokeLinecap="round">
+        {/* 대마난류: south → northeast past Jeju's east side */}
+        <path
+          className="animate-flow"
+          d="M 138 408 C 205 385 262 345 286 282 C 306 228 300 152 288 80"
+          stroke={WARM_CURRENT}
+          strokeWidth={7}
+          strokeDasharray="14 10"
+          markerEnd="url(#cur-warm)"
+          opacity={0.92}
+        />
+        {/* 황해난류: splits northwest into the Yellow Sea */}
+        <path
+          className="animate-flow"
+          d="M 152 374 C 112 352 78 318 64 266 C 57 236 59 208 68 180"
+          stroke={WARM_CURRENT}
+          strokeWidth={6}
+          strokeDasharray="14 10"
+          markerEnd="url(#cur-warm)"
+          opacity={0.92}
+        />
+        {/* 중국연안류: cold water along the southwest */}
+        <path
+          className="animate-flow"
+          d="M 20 282 C 82 306 132 338 186 394"
+          stroke={COLD_CURRENT}
+          strokeWidth={6}
+          strokeDasharray="14 10"
+          markerEnd="url(#cur-cold)"
+          opacity={0.92}
+        />
+      </g>
+      <text x={296} y={168} fontSize={12} fontWeight="bold" fill={WARM_CURRENT}>
+        대마난류
+      </text>
+      <text x={28} y={228} fontSize={11} fontWeight="bold" fill={WARM_CURRENT}>
+        황해난류
+      </text>
+      <text x={62} y={352} fontSize={11} fontWeight="bold" fill={COLD_CURRENT}>
+        중국연안류
+      </text>
 
       {/* fish of the year */}
       {fish.map((f, i) => {
