@@ -172,9 +172,14 @@ Two implementations:
   `output_image.data` field as base64. Auth header `x-goog-api-key`.
 - **OpenAI** (`OPENAI_API_KEY`): `gpt-image-1` via
   `POST https://api.openai.com/v1/images/generations`. Request body:
-  `{ model, prompt, size: "1024x1792" }` (1024×1792 ≈ 9:16). Image extracted
+  `{ model, prompt, size: "1024x1536" }` — gpt-image-1's portrait size
+  (1024×1792 was DALL·E 3 and is rejected by gpt-image-1). Image extracted
   from `data[0].b64_json`. Auth header `Authorization: Bearer <key>`. Note:
   `response_format` is not accepted by gpt-image-1 — it always returns b64_json.
+- **Reliability (update):** both providers POST via a shared helper with a
+  45s per-attempt timeout and up to two retries (1s, 2s backoff) on 429/5xx
+  and network errors; a provider throws only on the final attempt, and the
+  route still renders the other panel.
 
 If a key is absent, the provider's `generate` returns
 `{ error: "API key not configured" }` rather than throwing — so the UI can

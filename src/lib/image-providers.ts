@@ -24,6 +24,46 @@ export function isError(x: ProviderResponse): x is ProviderError {
   return "error" in x;
 }
 
+const REQUEST_TIMEOUT_MS = 45_000;
+const RETRY_DELAYS_MS = [1_000, 2_000];
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** POST JSON with a per-attempt timeout and retry on 429/5xx (transient
+ *  quota/rate-limit and server errors). Rethrows on the last attempt —
+ *  callers wrap in try/catch and return ProviderError. */
+async function postJson(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (
+        (res.status === 429 || res.status >= 500) &&
+        attempt < RETRY_DELAYS_MS.length
+      ) {
+        await sleep(RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      return res;
+    } catch (err) {
+      // Network error or timeout.
+      if (attempt < RETRY_DELAYS_MS.length) {
+        await sleep(RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // --- Gemini (Nano Banana 2) via the Interactions API ---
 const GEMINI_MODEL = "gemini-3.1-flash-image";
 
@@ -37,23 +77,20 @@ export const geminiProvider: ImageProvider = {
     if (!key) return { error: "GEMINI_API_KEY not configured" };
     const start = Date.now();
     try {
-      const res = await fetch(
+      const res = await postJson(
         "https://generativelanguage.googleapis.com/v1beta/interactions",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": key,
+          "Content-Type": "application/json",
+          "x-goog-api-key": key,
+        },
+        {
+          model: GEMINI_MODEL,
+          input: prompt,
+          response_format: {
+            type: "image",
+            aspect_ratio: "9:16",
+            image_size: "1K",
           },
-          body: JSON.stringify({
-            model: GEMINI_MODEL,
-            input: prompt,
-            response_format: {
-              type: "image",
-              aspect_ratio: "9:16",
-              image_size: "1K",
-            },
-          }),
         },
       );
       if (!res.ok) {
@@ -88,19 +125,19 @@ export const openaiProvider: ImageProvider = {
     if (!key) return { error: "OPENAI_API_KEY not configured" };
     const start = Date.now();
     try {
-      const res = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
+      const res = await postJson(
+        "https://api.openai.com/v1/images/generations",
+        {
           "Content-Type": "application/json",
           Authorization: `Bearer ${key}`,
         },
-        body: JSON.stringify({
+        {
           model: OPENAI_MODEL,
           prompt,
-          size: "1024x1792", // closest 9:16 option
+          size: "1024x1536", // gpt-image-1's portrait size (1024x1792 was DALL·E 3)
           n: 1,
-        }),
-      });
+        },
+      );
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         return {
