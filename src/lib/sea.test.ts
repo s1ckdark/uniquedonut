@@ -42,11 +42,10 @@ test("yearlyAverages: skips null days", () => {
 test("tempToSeaColor: clamps and warms with temperature", () => {
   assert.equal(tempToSeaColor(10), tempToSeaColor(15)); // clamped low
   assert.equal(tempToSeaColor(30), tempToSeaColor(26)); // clamped high
-  // warms: green channel rises across the ramp
   const cold = tempToSeaColor(16);
   const warm = tempToSeaColor(25);
   assert.notEqual(cold, warm);
-  assert.ok(warm.startsWith("#"));
+  assert.ok(warm.startsWith("rgb("));
 });
 
 test("contourBands: coast warmest, cooling outward", () => {
