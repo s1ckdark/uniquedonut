@@ -48,13 +48,14 @@ test("tempToSeaColor: clamps and warms with temperature", () => {
   assert.ok(warm.startsWith("rgb("));
 });
 
-test("contourBands: coast warmest, cooling outward", () => {
+test("contourBands: coast warmest, dense 0.4° steps cooling outward", () => {
   const bands = contourBands(21);
-  assert.equal(bands.length, 5);
+  assert.equal(bands.length, 11);
   for (let i = 1; i < bands.length; i++) {
     assert.ok(bands[i - 1] > bands[i], "bands must cool outward");
   }
-  assert.ok(Math.abs(bands[2] - 21) < 1e-9); // middle band = year average
+  assert.ok(Math.abs(bands[0] - 23) < 1e-9); // coast = avg + 2
+  assert.ok(Math.abs(bands[bands.length - 1] - 19) < 1e-9); // outermost
 });
 
 test("FISH_STAGES: four stages with complete entries", () => {

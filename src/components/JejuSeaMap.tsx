@@ -2,24 +2,45 @@
 
 import { contourBands, tempToSeaColor, type FishEntry } from "@/lib/sea";
 
-// Jeju-centered isotherm map: concentric contour bands radiate from the
-// island (coast warmest → open water coolest). Band colors transition over
-// 0.8s so stepping years visibly warms the sea.
+// Jeju-centered isotherm map. The island is drawn from real coastline
+// points (차귀진 → 성산일출봉 → 서귀포), and the contour bands are that
+// same outline scaled up around its center — so the isotherms hug the
+// island's actual shape. Band colors transition over 0.8s when the year
+// changes.
 
 const CX = 210;
-const CY = 210;
-const BAND_ELLIPSES: { rx: number; ry: number }[] = [
-  { rx: 60, ry: 44 },
-  { rx: 88, ry: 64 },
-  { rx: 118, ry: 86 },
-  { rx: 150, ry: 110 },
-  { rx: 185, ry: 138 },
-];
+const CY = 220;
+
+// Real coastline sample points mapped to SVG coords
+// (lon 126.16–126.94 → x 120–300, lat 33.23–33.53 → y 185–255).
+const ISLAND_PATH = `M 120 241
+  C 122 226, 132 218, 145 213
+  C 155 202, 165 195, 180 192
+  C 190 189, 198 190, 205 190
+  C 215 189, 224 187, 233 187
+  C 241 186, 249 184, 256 185
+  C 270 186, 288 190, 300 201
+  C 292 216, 282 222, 270 227
+  C 262 234, 254 237, 245 241
+  C 235 248, 224 252, 213 253
+  C 202 255, 191 255, 180 253
+  C 168 254, 155 256, 145 255
+  C 134 252, 122 248, 120 241 Z`;
+
+// 11 contour rings: scale factor per band (band 0 = coast, innermost).
+function scaleFor(i: number, n: number): number {
+  return 1.08 + (i * (2.0 - 1.08)) / (n - 1);
+}
+
+function scaledPath(scale: number): string {
+  return `translate(${CX} ${CY}) scale(${scale.toFixed(3)}) translate(${-CX} ${-CY})`;
+}
+
 const FISH_SPOTS = [
-  { x: 300, y: 130 },
-  { x: 118, y: 300 },
-  { x: 322, y: 282 },
-  { x: 84, y: 118 },
+  { x: 332, y: 152 },
+  { x: 92, y: 292 },
+  { x: 348, y: 296 },
+  { x: 70, y: 138 },
 ];
 
 export default function JejuSeaMap({
@@ -29,7 +50,14 @@ export default function JejuSeaMap({
   yearAvg: number;
   fish: FishEntry[];
 }) {
-  const bands = contourBands(yearAvg); // coast(0) → outer(4)
+  const bands = contourBands(yearAvg); // coast(0, warmest) → outer(last)
+  const n = bands.length;
+
+  // Fill layers: outermost (coolest) first, coast band painted last.
+  const fillOrder = bands.map((temp, i) => ({ temp, i })).reverse();
+
+  // Label every 3rd band on the left side, staggered.
+  const labelIdx = [0, 3, 6, 9].filter((i) => i < n);
 
   return (
     <svg
@@ -38,49 +66,51 @@ export default function JejuSeaMap({
       role="img"
       aria-label="제주 주변 바다 수온 등고선 지도"
     >
-      {/* sea: outermost (coolest) fills everything, then warmer bands inward */}
-      <rect width={420} height={420} rx={14} fill={tempToSeaColor(bands[4])} />
-      {[3, 2, 1, 0].map((i) => (
-        <ellipse
-          key={i}
-          cx={CX}
-          cy={CY}
-          rx={BAND_ELLIPSES[i].rx}
-          ry={BAND_ELLIPSES[i].ry}
-          fill={tempToSeaColor(bands[i])}
+      {/* open water: outermost band color */}
+      <rect width={420} height={420} rx={14} fill={tempToSeaColor(bands[n - 1])} />
+
+      {/* island-hugging contour bands, outermost first */}
+      {fillOrder.map(({ temp, i }) => (
+        <path
+          key={`f${i}`}
+          d={ISLAND_PATH}
+          transform={scaledPath(scaleFor(i, n))}
+          fill={tempToSeaColor(temp)}
           style={{ transition: "fill 0.8s" }}
         />
       ))}
 
-      {/* contour lines at each band edge */}
-      {BAND_ELLIPSES.map((e, i) => (
-        <ellipse
+      {/* dashed contour strokes on each band edge */}
+      {bands.map((_, i) => (
+        <path
           key={`c${i}`}
-          cx={CX}
-          cy={CY}
-          rx={e.rx}
-          ry={e.ry}
+          d={ISLAND_PATH}
+          transform={scaledPath(scaleFor(i, n))}
           fill="none"
-          stroke="rgba(255,255,255,0.55)"
-          strokeWidth={1.4}
-          strokeDasharray="5 5"
+          stroke="rgba(255,255,255,0.5)"
+          strokeWidth={1.2}
+          strokeDasharray="4 5"
         />
       ))}
 
-      {/* band temperature labels along the right vertex of each ellipse */}
-      {BAND_ELLIPSES.map((e, i) => (
-        <text
-          key={`t${i}`}
-          x={CX + e.rx * 0.72}
-          y={CY - e.ry * 0.72}
-          fontSize={11}
-          fontWeight="bold"
-          fill="#FEFEFE"
-          style={{ transition: "fill 0.8s" }}
-        >
-          {bands[i].toFixed(1)}°
-        </text>
-      ))}
+      {/* band temperature labels */}
+      {labelIdx.map((i) => {
+        const k = scaleFor(i, n);
+        return (
+          <text
+            key={`t${i}`}
+            x={CX - 90 * k - 8}
+            y={CY + 8}
+            textAnchor="end"
+            fontSize={10.5}
+            fontWeight="bold"
+            fill="#FEFEFE"
+            style={{ transition: "fill 0.8s" }}
+          >
+            {bands[i].toFixed(1)}°
+          </text>
+        );
+      })}
 
       {/* fish of the year */}
       {fish.map((f, i) => {
@@ -88,7 +118,11 @@ export default function JejuSeaMap({
         const badge =
           f.trend === "in" ? "↗" : f.trend === "out" ? "↘" : "•";
         const badgeColor =
-          f.trend === "in" ? "#FFD93D" : f.trend === "out" ? "#FF6B9D" : "#FEFEFE";
+          f.trend === "in"
+            ? "#FFD93D"
+            : f.trend === "out"
+              ? "#FF6B9D"
+              : "#FEFEFE";
         return (
           <g key={f.name} transform={`translate(${spot.x} ${spot.y})`}>
             <circle r={19} fill="rgba(20,15,40,0.72)" />
@@ -105,32 +139,25 @@ export default function JejuSeaMap({
         );
       })}
 
-      {/* Jeju island */}
+      {/* Jeju island on top */}
       <path
-        d="M 160 196
-           C 158 176 174 162 200 158
-           C 232 153 262 166 264 192
-           C 266 216 246 240 208 244
-           C 176 247 162 220 160 196 Z"
+        d={ISLAND_PATH}
         fill="#4C9F70"
         stroke="#2f7a4a"
         strokeWidth={2.5}
       />
-      {/* Hallasan */}
-      <path d="M 200 176 L 212 200 L 188 200 Z" fill="#2f7a4a" />
-      <text x={212} y={198} fontSize={10} fill="#FEFEFE">한라산</text>
-      {/* beach ring highlight */}
-      <path
-        d="M 160 196
-           C 158 176 174 162 200 158
-           C 232 153 262 166 264 192
-           C 266 216 246 240 208 244
-           C 176 247 162 220 160 196 Z"
-        fill="none"
-        stroke="#FFD93D"
-        strokeWidth={1.6}
-        opacity={0.6}
-      />
+      {/* Hallasan + 성산일출봉 */}
+      <path d="M 197 218 L 207 236 L 187 236 Z" fill="#2f7a4a" />
+      <text x={211} y={232} fontSize={10} fill="#FEFEFE">
+        한라산
+      </text>
+      <circle cx={297} cy={200} r={4.5} fill="#2f7a4a" />
+      <text x={290} y={192} fontSize={9} fill="#FEFEFE">
+        성산
+      </text>
+      <text x={128} y={268} fontSize={9} fill="#FEFEFE">
+        차귀진
+      </text>
     </svg>
   );
 }

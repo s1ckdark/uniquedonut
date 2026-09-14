@@ -59,10 +59,18 @@ export function tempToSeaColor(temp: number): string {
   return `rgb(${mix[0]},${mix[1]},${mix[2]})`;
 }
 
-/** Isotherm band temps around the island, coast outward: coastal shallows
- *  sit above the year average, open water below it. */
-export function contourBands(yearAvg: number): number[] {
-  return [yearAvg + 2, yearAvg + 1, yearAvg, yearAvg - 1, yearAvg - 2];
+/** Isotherm band temps around the island, coast outward. Dense 0.4°C steps
+ *  over a ±2°C spread → 11 bands (coast warmest, open water coolest). */
+export function contourBands(
+  yearAvg: number,
+  step = 0.4,
+  halfSpread = 2,
+): number[] {
+  const bands: number[] = [];
+  for (let t = yearAvg + halfSpread; t > yearAvg - halfSpread - step / 2; t -= step) {
+    bands.push(t);
+  }
+  return bands;
 }
 
 export type FishTrend = "in" | "out" | "stable";
