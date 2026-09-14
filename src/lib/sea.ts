@@ -59,11 +59,12 @@ export function tempToSeaColor(temp: number): string {
   return `rgb(${mix[0]},${mix[1]},${mix[2]})`;
 }
 
-/** Isotherm band temps around the island, coast outward. Dense 0.4°C steps
- *  over a ±2°C spread → 11 bands (coast warmest, open water coolest). */
+/** Isotherm band temps around the island, coast outward. 0.5°C steps over
+ *  a ±2°C spread → 9 bands with clearly distinct fill colors (coast
+ *  warmest, open water coolest). */
 export function contourBands(
   yearAvg: number,
-  step = 0.4,
+  step = 0.5,
   halfSpread = 2,
 ): number[] {
   const bands: number[] = [];

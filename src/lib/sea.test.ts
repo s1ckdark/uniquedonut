@@ -48,9 +48,9 @@ test("tempToSeaColor: clamps and warms with temperature", () => {
   assert.ok(warm.startsWith("rgb("));
 });
 
-test("contourBands: coast warmest, dense 0.4° steps cooling outward", () => {
+test("contourBands: coast warmest, 0.5° steps cooling outward", () => {
   const bands = contourBands(21);
-  assert.equal(bands.length, 11);
+  assert.equal(bands.length, 9);
   for (let i = 1; i < bands.length; i++) {
     assert.ok(bands[i - 1] > bands[i], "bands must cool outward");
   }
