@@ -74,4 +74,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "😴",
     color: "#f4a261",
   },
+  {
+    slug: "idiom-cheongoma",
+    name: "천고마비",
+    description: "가을 성어의 뜻과 유래",
+    href: "/idiom",
+    emoji: "🐎",
+    color: "#e76f51",
+  },
 ];
