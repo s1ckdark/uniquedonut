@@ -716,13 +716,20 @@ export default function QuizPage() {
                 </table>
               </div>
             )}
-            <div className="mt-5 flex justify-center gap-3">
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={start}
+                className="rounded-full bg-gradient-to-r from-[#FFD93D] to-[#FF8C42] px-6 py-2 font-black text-black transition hover:scale-105 cursor-pointer"
+              >
+                🔁 한 게임 더!
+              </button>
               <button
                 type="button"
                 onClick={() => setPhase("setup")}
-                className="rounded-full bg-gradient-to-r from-[#FFD93D] to-[#FF8C42] px-6 py-2 font-black text-black transition hover:scale-105 cursor-pointer"
+                className="rounded-full bg-white/10 px-6 py-2 font-bold text-white/70 transition hover:bg-white/20 cursor-pointer"
               >
-                ⚙ 다시 설정하고 도전!
+                ⚙ 설정 바꾸기
               </button>
             </div>
           </div>
