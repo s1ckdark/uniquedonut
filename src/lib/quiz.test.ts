@@ -105,6 +105,7 @@ test("difficultyScore: each setting raises the score", () => {
 
 test("difficultyScore: clamps at 100", () => {
   const extreme: QuizConfig = {
+    ...DEFAULT_CONFIG,
     tables: [11, 5, 6, 7],
     optionCount: 5,
     timeoutMs: 3000,
