@@ -54,6 +54,19 @@ test("sanitizeEntry: op validated to the four operations", () => {
   assert.equal(legacy.op, undefined);
 });
 
+test("sanitizeEntry: topic must be a slug-shaped string", () => {
+  const withTopic = sanitizeEntry(entry({ topic: "sleep-grow" }));
+  assert.ok(withTopic);
+  assert.equal(withTopic.topic, "sleep-grow");
+
+  assert.equal(sanitizeEntry(entry({ topic: "잘못된 값" })), null);
+  assert.equal(sanitizeEntry(entry({ topic: "x".repeat(31) })), null);
+
+  const legacy = sanitizeEntry(entry({}));
+  assert.ok(legacy);
+  assert.equal(legacy.topic, undefined);
+});
+
 test("sortEntries: score desc, then faster time wins ties", () => {
   const sorted = sortEntries([
     entry({ name: "A", score: 30, totalSeconds: 10 }),
