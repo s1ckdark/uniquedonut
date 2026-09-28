@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG,
   buildQuiz,
+  buildPlayQuestions,
   pointsForElapsed,
   shuffle,
   difficultyScore,
@@ -10,6 +11,7 @@ import {
   distractorStep,
   type QuizConfig,
 } from "./quiz";
+import { findTopic } from "./quiz-content";
 
 test("DEFAULT_CONFIG: 3 choices, table 2, 5s, 5 questions", () => {
   assert.deepEqual(DEFAULT_CONFIG.tables, [2]);
@@ -193,4 +195,43 @@ test("buildQuiz: default config still multiplication on table 2", () => {
     assert.equal(q.answer, q.a * q.b);
     assert.equal(q.a, 2);
   }
+});
+
+// ---------- unified play questions (math + content topics) ----------
+
+test("buildPlayQuestions: math config renders 'a sym b = ?' with string options", () => {
+  const plays = buildPlayQuestions({ ...DEFAULT_CONFIG, op: "add", rangeMax: 10 });
+  assert.equal(plays.length, 5);
+  for (const p of plays) {
+    assert.match(p.display, /^\d+ \+ \d+ = \?$/);
+    assert.equal(p.options.length, 3);
+    assert.ok(p.options.includes(p.answer));
+  }
+});
+
+test("buildPlayQuestions: content topic uses the bank, count respected", () => {
+  const cfg: QuizConfig = { ...DEFAULT_CONFIG, topic: "sleep-grow" };
+  const topic = findTopic("sleep-grow");
+  const plays = buildPlayQuestions(cfg);
+  assert.equal(plays.length, 5);
+  const prompts = new Set(plays.map((p) => p.display));
+  assert.equal(prompts.size, 5); // no repeats when count ≤ bank
+  for (const p of plays) {
+    assert.ok(topic.questions.some((q) => q.prompt === p.display));
+    assert.equal(p.options.length, 4);
+    assert.ok(p.options.includes(p.answer));
+  }
+});
+
+test("buildPlayQuestions: content repeats allowed beyond the bank", () => {
+  const cfg: QuizConfig = { ...DEFAULT_CONFIG, topic: "idiom-cheongoma", questionCount: 9 };
+  assert.equal(buildPlayQuestions(cfg).length, 9);
+});
+
+test("difficultyScore: topic = base + timeout + count, no option part", () => {
+  const cfg: QuizConfig = { ...DEFAULT_CONFIG, topic: "sleep-grow" };
+  // base 30 + timeout (16−5)×2=22 + count 0 = 52
+  assert.equal(difficultyScore(cfg), 52);
+  // longer game adds the count part
+  assert.equal(difficultyScore({ ...cfg, questionCount: 10 }), 57);
 });

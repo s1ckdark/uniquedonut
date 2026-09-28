@@ -1,6 +1,8 @@
 // Quiz Arena: four-operation quiz generation, speed scoring, and
 // difficulty. Pure module — no DOM, no React.
 
+import { findTopic } from "./quiz-content";
+
 export type QuizOp = "add" | "sub" | "mul" | "div";
 
 export interface QuizConfig {
@@ -10,6 +12,7 @@ export interface QuizConfig {
   optionCount: number; // 2..5
   timeoutMs: number; // per-question timeout
   questionCount: number; // total questions in a game
+  topic?: string; // content-topic slug — when set, math fields are ignored
 }
 
 export const MAX_TOTAL_POINTS = 50;
@@ -178,6 +181,37 @@ export function buildQuiz(config: QuizConfig): QuizQuestion[] {
     : buildRangeQuiz(config);
 }
 
+/** The single shape the play UI consumes: math and content-topic questions
+ *  alike become display text + string options. */
+export interface PlayQuestion {
+  display: string;
+  options: string[];
+  answer: string;
+}
+
+/** Build a game's play questions — from a content topic when config.topic
+ *  is set (bank shuffled, repeats only beyond the bank), otherwise math. */
+export function buildPlayQuestions(config: QuizConfig): PlayQuestion[] {
+  if (config.topic) {
+    const topic = findTopic(config.topic);
+    if (!topic) return [];
+    let bank = shuffle(topic.questions);
+    while (bank.length < config.questionCount) {
+      bank = bank.concat(shuffle(topic.questions));
+    }
+    return bank.slice(0, config.questionCount).map((q) => ({
+      display: q.prompt,
+      options: shuffle(q.options),
+      answer: q.answer,
+    }));
+  }
+  return buildQuiz(config).map((q) => ({
+    display: `${q.a} ${OP_SYMBOL[config.op]} ${q.b} = ?`,
+    options: q.options.map(String),
+    answer: String(q.answer),
+  }));
+}
+
 /** Speed points for an answer after `ms`: full per-question value under 1s,
  *  minus one bucket per second, 0 at the timeout. A perfect game is
  *  always MAX_TOTAL_POINTS. */
@@ -195,14 +229,23 @@ export function pointsForElapsed(ms: number, config: QuizConfig): number {
  *  Common parts — options (max 15): (optionCount − 2) × 5;
  *  timeout (max 24): (16 − seconds) × 2; questions (max 15): count − 5. */
 export function difficultyScore(config: QuizConfig): number {
+  const timeoutPts = clamp((16 - config.timeoutMs / 1000) * 2, 0, 24);
+  const countPts = config.questionCount - 5;
+
+  // Content-topic runs: the topic's base + timeout + count (no option part).
+  if (config.topic) {
+    const base = findTopic(config.topic)?.baseDifficulty ?? 0;
+    return Math.round(
+      Math.min(100, Math.max(0, base + timeoutPts + countPts)),
+    );
+  }
+
   const rangePts =
     config.op === "mul" || config.op === "div"
       ? clamp((Math.max(...config.tables, 1) - 1) * 4, 0, 40) +
         Math.min(6, (config.tables.length - 1) * 2)
       : clamp(Math.round((Math.log10(config.rangeMax) - 0.5) * 18), 6, 44);
   const optionPts = (config.optionCount - 2) * 5;
-  const timeoutPts = clamp((16 - config.timeoutMs / 1000) * 2, 0, 24);
-  const countPts = config.questionCount - 5;
   return Math.round(
     Math.min(100, Math.max(0, rangePts + optionPts + timeoutPts + countPts)),
   );
