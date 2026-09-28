@@ -8,16 +8,18 @@ export interface LeaderboardEntry {
   totalSeconds: number;
   date: string; // ISO date
   difficulty?: number; // 0–100; optional for entries saved before this field
+  op?: string; // add|sub|mul|div; legacy entries predate operations
 }
 
 const STORAGE_KEY = "gino-quiz-leaderboard";
 const MAX_ENTRIES = 50;
+const VALID_OPS = ["add", "sub", "mul", "div"];
 
 /** Validate and normalize a raw entry (e.g. from JSON or user input).
  *  Returns null when anything is out of range. */
 export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { name, score, totalSeconds, date, difficulty } = raw as Record<
+  const { name, score, totalSeconds, date, difficulty, op } = raw as Record<
     string,
     unknown
   >;
@@ -37,12 +39,14 @@ export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   ) {
     return null;
   }
+  if (op !== undefined && !VALID_OPS.includes(op as string)) return null;
   return {
     name: trimmed,
     score,
     totalSeconds,
     date: typeof date === "string" ? date : new Date().toISOString(),
     ...(difficulty === undefined ? {} : { difficulty }),
+    ...(op === undefined ? {} : { op: op as string }),
   };
 }
 

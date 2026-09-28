@@ -42,6 +42,18 @@ test("sanitizeEntry: difficulty optional but validated when present", () => {
   assert.equal(sanitizeEntry(entry({ difficulty: -5 })), null);
 });
 
+test("sanitizeEntry: op validated to the four operations", () => {
+  const withOp = sanitizeEntry(entry({ op: "add" }));
+  assert.ok(withOp);
+  assert.equal(withOp.op, "add");
+
+  assert.equal(sanitizeEntry(entry({ op: "multiply" })), null);
+
+  const legacy = sanitizeEntry(entry({}));
+  assert.ok(legacy);
+  assert.equal(legacy.op, undefined);
+});
+
 test("sortEntries: score desc, then faster time wins ties", () => {
   const sorted = sortEntries([
     entry({ name: "A", score: 30, totalSeconds: 10 }),
