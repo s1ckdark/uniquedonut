@@ -6,6 +6,8 @@ import {
   DEFAULT_CONFIG,
   buildQuiz,
   pointsForElapsed,
+  difficultyScore,
+  difficultyLabel,
   type QuizConfig,
   type QuizQuestion,
 } from "@/lib/quiz";
@@ -46,6 +48,7 @@ export default function QuizPage() {
 
   // results + leaderboard
   const [runSeconds, setRunSeconds] = useState(0);
+  const [runDifficulty, setRunDifficulty] = useState(31);
   const [name, setName] = useState("");
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [savedDate, setSavedDate] = useState<string | null>(null);
@@ -71,6 +74,7 @@ export default function QuizPage() {
     setTotal(0);
     setRemaining(config.timeoutMs);
     setSavedDate(null);
+    setRunDifficulty(difficultyScore(config));
     gameStartRef.current = Date.now();
     setPhase("play");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,7 +146,15 @@ export default function QuizPage() {
     const trimmed = name.trim();
     if (!trimmed) return;
     const date = new Date().toISOString();
-    setBoard(addEntry({ name: trimmed, score: total, totalSeconds: runSeconds, date }));
+    setBoard(
+      addEntry({
+        name: trimmed,
+        score: total,
+        totalSeconds: runSeconds,
+        date,
+        difficulty: runDifficulty,
+      }),
+    );
     setSavedDate(date);
     setPhase("board");
   }
@@ -323,14 +335,23 @@ export default function QuizPage() {
             </div>
 
             <div className="text-center">
-              <button
-                type="button"
-                onClick={start}
-                disabled={tables.length === 0}
-                className="rounded-full bg-gradient-to-r from-[#FFD93D] to-[#FF8C42] px-10 py-4 text-xl font-black text-black transition hover:scale-105 active:scale-95 disabled:opacity-30 cursor-pointer"
+              <p
+                className="inline-block rounded-full px-4 py-1 text-sm font-black"
+                style={{ background: "#FF6B9D20", color: "#FF6B9D" }}
               >
-                {tables.length === 0 ? "단을 골라주세요!" : "시작! 🚀"}
-              </button>
+                이 설정의 난이도: {difficultyScore(config)} ·{" "}
+                {difficultyLabel(difficultyScore(config))}
+              </p>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={start}
+                  disabled={tables.length === 0}
+                  className="rounded-full bg-gradient-to-r from-[#FFD93D] to-[#FF8C42] px-10 py-4 text-xl font-black text-black transition hover:scale-105 active:scale-95 disabled:opacity-30 cursor-pointer"
+                >
+                  {tables.length === 0 ? "단을 골라주세요!" : "시작! 🚀"}
+                </button>
+              </div>
               <p className="mt-2 text-xs text-white/40">
                 만점은 언제나 50점! 빠르게 맞힐수록 점수가 커요
               </p>
@@ -432,6 +453,9 @@ export default function QuizPage() {
             <p className="mt-1 font-mono text-sm text-white/50">
               ⏱ 총 {formatTime(runSeconds)}
             </p>
+            <p className="mt-1 text-sm font-bold text-[#FF6B9D]">
+              난이도 {runDifficulty} · {difficultyLabel(runDifficulty)}
+            </p>
             <p
               className="mt-2 text-xl"
               style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
@@ -495,13 +519,14 @@ export default function QuizPage() {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[380px] text-sm">
+                <table className="w-full min-w-[460px] text-sm">
                   <thead>
                     <tr className="text-left text-white/40">
                       <th className="pb-2">#</th>
                       <th className="pb-2">이름</th>
                       <th className="pb-2">점수</th>
                       <th className="pb-2">총시간</th>
+                      <th className="pb-2">난이도</th>
                       <th className="pb-2">날짜</th>
                     </tr>
                   </thead>
@@ -518,6 +543,13 @@ export default function QuizPage() {
                           <td className="py-2">{fmtPts(e.score)}</td>
                           <td className="py-2 font-mono">
                             {formatTime(e.totalSeconds)}
+                          </td>
+                          <td className="py-2 whitespace-nowrap text-xs">
+                            {e.difficulty === undefined ? (
+                              <span className="text-white/30">—</span>
+                            ) : (
+                              `${e.difficulty} ${difficultyLabel(e.difficulty)}`
+                            )}
                           </td>
                           <td className="py-2 text-white/50">
                             {e.date.slice(5, 10).replace("-", "/")}
