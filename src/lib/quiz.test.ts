@@ -5,6 +5,8 @@ import {
   buildQuiz,
   pointsForElapsed,
   shuffle,
+  difficultyScore,
+  difficultyLabel,
   type QuizConfig,
 } from "./quiz";
 
@@ -74,4 +76,47 @@ test("shuffle: preserves the multiset of elements", () => {
   const out = shuffle(arr);
   assert.deepEqual([...out].sort((a, b) => a - b), arr);
   assert.deepEqual(arr, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "input untouched");
+});
+
+test("difficultyScore: default config = 31 (table 4 + options 5 + timeout 22)", () => {
+  assert.equal(difficultyScore(DEFAULT_CONFIG), 31);
+});
+
+test("difficultyScore: each setting raises the score", () => {
+  const fiveChoice: QuizConfig = { ...DEFAULT_CONFIG, optionCount: 5 };
+  assert.equal(difficultyScore(fiveChoice), 31 + 10); // options 5 → 15
+
+  const fast: QuizConfig = { ...DEFAULT_CONFIG, timeoutMs: 3000 };
+  assert.equal(difficultyScore(fast), 31 + 2); // timeout 22 → 24 (cap)
+
+  const slow: QuizConfig = { ...DEFAULT_CONFIG, timeoutMs: 15000 };
+  assert.equal(difficultyScore(slow), 31 - 20); // timeout 22 → 2
+
+  const long: QuizConfig = { ...DEFAULT_CONFIG, questionCount: 20 };
+  assert.equal(difficultyScore(long), 31 + 15);
+
+  const hardTable: QuizConfig = { ...DEFAULT_CONFIG, tables: [11] };
+  assert.equal(difficultyScore(hardTable), 31 + 36); // table 4 → 40
+
+  const multi: QuizConfig = { ...DEFAULT_CONFIG, tables: [2, 3] };
+  assert.equal(difficultyScore(multi), 31 + 6); // table 4 → 8 (highest=3) + 2 extra
+});
+
+test("difficultyScore: clamps at 100", () => {
+  const extreme: QuizConfig = {
+    tables: [11, 5, 6, 7],
+    optionCount: 5,
+    timeoutMs: 3000,
+    questionCount: 20,
+  };
+  assert.ok(difficultyScore(extreme) <= 100);
+  assert.ok(difficultyScore(extreme) >= 95);
+});
+
+test("difficultyLabel: tier names by range", () => {
+  assert.equal(difficultyLabel(10), "🌱 쉬움");
+  assert.equal(difficultyLabel(26), "🔥 보통");
+  assert.equal(difficultyLabel(45), "⚡ 어려움");
+  assert.equal(difficultyLabel(70), "🔥🔥 매우 어려움");
+  assert.equal(difficultyLabel(95), "👑 극한");
 });

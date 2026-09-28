@@ -74,3 +74,32 @@ export function pointsForElapsed(ms: number, config: QuizConfig): number {
   const elapsedSec = Math.floor(ms / 1000);
   return round1((perQuestion * (buckets - elapsedSec)) / buckets);
 }
+
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, n));
+
+/** Quantified difficulty of a config, 0–100:
+ *  tables (max 46): (highest table − 1) × 4, +2 per extra table (cap 6)
+ *  options (max 15): (optionCount − 2) × 5
+ *  timeout (max 24): (16 − seconds) × 2
+ *  questions (max 15): questionCount − 5  */
+export function difficultyScore(config: QuizConfig): number {
+  const tablePts =
+    clamp((Math.max(...config.tables, 1) - 1) * 4, 0, 40) +
+    Math.min(6, (config.tables.length - 1) * 2);
+  const optionPts = (config.optionCount - 2) * 5;
+  const timeoutPts = clamp((16 - config.timeoutMs / 1000) * 2, 0, 24);
+  const countPts = config.questionCount - 5;
+  return Math.round(
+    Math.min(100, Math.max(0, tablePts + optionPts + timeoutPts + countPts)),
+  );
+}
+
+/** Kid-friendly tier label for a difficulty score. */
+export function difficultyLabel(score: number): string {
+  if (score < 20) return "🌱 쉬움";
+  if (score < 40) return "🔥 보통";
+  if (score < 60) return "⚡ 어려움";
+  if (score < 80) return "🔥🔥 매우 어려움";
+  return "👑 극한";
+}
