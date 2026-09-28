@@ -14,11 +14,15 @@ export const dynamic = "force-dynamic";
 interface D1Result<T> {
   results: T[];
 }
+interface D1Meta {
+  last_row_id?: number;
+  changes?: number;
+}
 interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
   first<T>(): Promise<T | null>;
   all<T>(): Promise<D1Result<T>>;
-  run(): Promise<unknown>;
+  run(): Promise<{ meta?: D1Meta }>;
 }
 interface D1Database {
   prepare(query: string): D1PreparedStatement;
@@ -113,6 +117,7 @@ export async function POST(request: Request) {
 
   try {
     const db = await getDb();
+    // INSERT returns no rows in D1 — the new id arrives via meta.last_row_id.
     const result = await db
       .prepare(
         `INSERT INTO scores (name, score, total_seconds, difficulty, op, topic, created_at)
@@ -127,11 +132,12 @@ export async function POST(request: Request) {
         entry.topic ?? null,
         entry.date,
       )
-      .first<{ id: number }>();
-    if (!result) {
+      .run();
+    const id = result.meta?.last_row_id;
+    if (typeof id !== "number") {
       return Response.json({ error: "insert failed" }, { status: 500 });
     }
-    return Response.json({ id: result.id, entries: await topEntries(db) });
+    return Response.json({ id, entries: await topEntries(db) });
   } catch (err) {
     return Response.json(
       { error: `leaderboard write failed: ${(err as Error).message}` },

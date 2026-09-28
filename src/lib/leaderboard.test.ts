@@ -67,6 +67,18 @@ test("sanitizeEntry: topic must be a slug-shaped string", () => {
   assert.equal(legacy.topic, undefined);
 });
 
+test("sanitizeEntry: passes a valid DB row id through, rejects bad ones", () => {
+  const withId = sanitizeEntry(entry({ id: 42 }));
+  assert.ok(withId);
+  assert.equal(withId.id, 42);
+
+  assert.equal(sanitizeEntry(entry({ id: "42" })), null);
+
+  const noId = sanitizeEntry(entry({}));
+  assert.ok(noId);
+  assert.equal(noId.id, undefined);
+});
+
 test("sortEntries: score desc, then faster time wins ties", () => {
   const sorted = sortEntries([
     entry({ name: "A", score: 30, totalSeconds: 10 }),

@@ -19,7 +19,7 @@ const VALID_OPS = ["add", "sub", "mul", "div"];
  *  Returns null when anything is out of range. */
 export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { name, score, totalSeconds, date, difficulty, op, topic } = raw as Record<
+  const { id, name, score, totalSeconds, date, difficulty, op, topic } = raw as Record<
     string,
     unknown
   >;
@@ -46,7 +46,9 @@ export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   ) {
     return null;
   }
+  if (id !== undefined && typeof id !== "number") return null;
   return {
+    ...(typeof id === "number" ? { id } : {}),
     name: trimmed,
     score,
     totalSeconds,
