@@ -1,8 +1,9 @@
-// Quiz Arena leaderboard: entries live in localStorage (per-browser, no
-// server needed — works on every deploy target). Pure helpers are
-// unit-tested; the storage wrappers guard for non-browser environments.
+// Quiz Arena leaderboard on Cloudflare D1 (shared across every device).
+// Pure helpers are unit-tested; the async wrappers hit the route handler
+// and sanitize responses again as defense in depth.
 
 export interface LeaderboardEntry {
+  id?: number; // DB row id — present for entries fetched from the API
   name: string;
   score: number;
   totalSeconds: number;
@@ -12,8 +13,6 @@ export interface LeaderboardEntry {
   topic?: string; // content-topic slug for story quizzes
 }
 
-const STORAGE_KEY = "gino-quiz-leaderboard";
-const MAX_ENTRIES = 50;
 const VALID_OPS = ["add", "sub", "mul", "div"];
 
 /** Validate and normalize a raw entry (e.g. from JSON or user input).
@@ -69,28 +68,41 @@ export function formatTime(seconds: number): string {
   return `${seconds.toFixed(1)}초`;
 }
 
-export function loadLeaderboard(): LeaderboardEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = JSON.parse(
-      window.localStorage.getItem(STORAGE_KEY) ?? "[]",
-    ) as unknown;
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .map(sanitizeEntry)
-      .filter((e): e is LeaderboardEntry => e !== null);
-  } catch {
-    return [];
+const API = "/api/quiz/leaderboard";
+
+/** Fetch the shared top-50 leaderboard. */
+export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  const res = await fetch(API);
+  if (!res.ok) {
+    throw new Error(`리더보드 불러오기 실패 (${res.status})`);
   }
+  const data = (await res.json()) as { entries?: unknown };
+  if (!Array.isArray(data.entries)) return [];
+  return data.entries
+    .map(sanitizeEntry)
+    .filter((e): e is LeaderboardEntry => e !== null);
 }
 
-export function addEntry(entry: LeaderboardEntry): LeaderboardEntry[] {
-  const next = sortEntries([...loadLeaderboard(), entry]).slice(
-    0,
-    MAX_ENTRIES,
-  );
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+/** Submit a run; returns the inserted row id plus the fresh leaderboard. */
+export async function submitScore(
+  entry: LeaderboardEntry,
+): Promise<{ id: number; entries: LeaderboardEntry[] }> {
+  const res = await fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry),
+  });
+  if (!res.ok) {
+    throw new Error(`점수 저장 실패 (${res.status})`);
   }
-  return next;
+  const data = (await res.json()) as { id?: number; entries?: unknown };
+  if (typeof data.id !== "number") {
+    throw new Error("점수 저장 실패 (응답 이상)");
+  }
+  const entries = Array.isArray(data.entries)
+    ? data.entries
+        .map(sanitizeEntry)
+        .filter((e): e is LeaderboardEntry => e !== null)
+    : [];
+  return { id: data.id, entries };
 }

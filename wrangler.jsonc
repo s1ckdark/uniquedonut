@@ -6,5 +6,15 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
-  }
+  },
+  // Quiz leaderboard storage. Create the database once and paste its id:
+  //   npx wrangler login && npx wrangler d1 create uniquedonut-db
+  // Local dev works with the placeholder id (miniflare simulates D1).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "uniquedonut-db",
+      "database_id": "PLACEHOLDER-REPLACE-AFTER-wrangler-d1-create"
+    }
+  ]
 }
