@@ -82,4 +82,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🐎",
     color: "#e76f51",
   },
+  {
+    slug: "quiz-arena",
+    name: "구구단 챌린지",
+    description: "5초 안에 맞혀 포인트!",
+    href: "/quiz",
+    emoji: "⚡",
+    color: "#FFD93D",
+  },
 ];
