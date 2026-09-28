@@ -9,9 +9,11 @@ import {
   OP_LABEL,
   buildPlayQuestions,
   pointsForElapsed,
+  pointsForCorrect,
   difficultyScore,
   difficultyLabel,
   type QuizConfig,
+  type QuizMode,
   type QuizOp,
   type PlayQuestion,
 } from "@/lib/quiz";
@@ -37,6 +39,7 @@ const fmtPts = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 export default function QuizPage() {
   // settings — topicSlug null means the math mode
   const [topicSlug, setTopicSlug] = useState<string | null>(null);
+  const [mode, setMode] = useState<QuizMode>(DEFAULT_CONFIG.mode);
   const [op, setOp] = useState<QuizOp>(DEFAULT_CONFIG.op);
   const [optionCount, setOptionCount] = useState(DEFAULT_CONFIG.optionCount);
   const [tables, setTables] = useState<number[]>(DEFAULT_CONFIG.tables);
@@ -70,6 +73,7 @@ export default function QuizPage() {
 
   const config: QuizConfig = {
     op,
+    mode,
     tables,
     rangeMax,
     optionCount,
@@ -95,9 +99,9 @@ export default function QuizPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicSlug, op, optionCount, tables, rangeMax, timeoutSec, questionCount]);
 
-  // Countdown while a question is live.
+  // Countdown while a question is live (attack mode only).
   useEffect(() => {
-    if (phase !== "play" || locked) return;
+    if (phase !== "play" || locked || mode === "free") return;
     startRef.current = Date.now();
     setRemaining(config.timeoutMs);
     const tick = setInterval(() => {
@@ -135,9 +139,12 @@ export default function QuizPage() {
 
   function pick(option: string) {
     if (locked || !question) return;
-    const elapsed = Date.now() - startRef.current;
     const correct = option === question.answer;
-    const pts = correct ? pointsForElapsed(elapsed, config) : 0;
+    const pts = correct
+      ? mode === "free"
+        ? pointsForCorrect(config)
+        : pointsForElapsed(Date.now() - startRef.current, config)
+      : 0;
     setPicked(option);
     setGained(pts);
     if (pts > 0) setTotal((t) => t + pts);
@@ -300,6 +307,41 @@ export default function QuizPage() {
               <>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <p className="mb-3 text-sm font-bold text-white/70">
+                    게임 모드
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMode("attack")}
+                      className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                        mode === "attack"
+                          ? "bg-[#FF6B9D] text-black"
+                          : "bg-white/10 text-white/70 hover:bg-white/20"
+                      }`}
+                    >
+                      ⚡ 타임어택
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("free")}
+                      className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                        mode === "free"
+                          ? "bg-[#6BCB77] text-black"
+                          : "bg-white/10 text-white/70 hover:bg-white/20"
+                      }`}
+                    >
+                      ✅ 맞추기
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-white/50">
+                    {mode === "attack"
+                      ? "빠르게 맞힐수록 점수가 커요! 시간이 지나면 0점"
+                      : "시간 제한 없이 맞히기만 하면 문항당 고정 점수!"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <p className="mb-3 text-sm font-bold text-white/70">
                     연산 고르기
                   </p>
                   <div className="flex gap-2">
@@ -444,21 +486,23 @@ export default function QuizPage() {
             )}
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="mb-3 text-sm font-bold text-white/70">
-                  타임아웃 · {timeoutSec}초
-                </p>
-                <input
-                  type="range"
-                  min={3}
-                  max={15}
-                  step={1}
-                  value={timeoutSec}
-                  onChange={(e) => setTimeoutSec(Number(e.target.value))}
-                  className="w-full accent-[#FF6B9D] cursor-pointer"
-                  aria-label="타임아웃 초"
-                />
-              </div>
+              {mode === "attack" && (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <p className="mb-3 text-sm font-bold text-white/70">
+                    타임아웃 · {timeoutSec}초
+                  </p>
+                  <input
+                    type="range"
+                    min={3}
+                    max={15}
+                    step={1}
+                    value={timeoutSec}
+                    onChange={(e) => setTimeoutSec(Number(e.target.value))}
+                    className="w-full accent-[#FF6B9D] cursor-pointer"
+                    aria-label="타임아웃 초"
+                  />
+                </div>
+              )}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                 <p className="mb-3 text-sm font-bold text-white/70">
                   문항수 · {questionCount}문제
@@ -504,32 +548,48 @@ export default function QuizPage() {
         {/* ---------- play ---------- */}
         {phase === "play" && question && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <div className="mb-2 flex items-center justify-between text-xs font-bold">
-              <span style={{ color: gaugeColor }}>
-                ⏱ {(remaining / 1000).toFixed(1)}초
-              </span>
-              {gained !== null && (
-                <span
-                  className="text-lg"
-                  style={{ color: gained > 0 ? "#6BCB77" : "#FF6B9D" }}
-                >
-                  {timedOut
-                    ? "시간 초과… 0점"
-                    : gained > 0
-                      ? `+${fmtPts(gained)}점!`
-                      : "아쉬워요 0점"}
+            {mode === "attack" ? (
+              <div className="mb-2 flex items-center justify-between text-xs font-bold">
+                <span style={{ color: gaugeColor }}>
+                  ⏱ {(remaining / 1000).toFixed(1)}초
                 </span>
-              )}
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${(remaining / config.timeoutMs) * 100}%`,
-                  background: gaugeColor,
-                }}
-              />
-            </div>
+                {gained !== null && (
+                  <span
+                    className="text-lg"
+                    style={{ color: gained > 0 ? "#6BCB77" : "#FF6B9D" }}
+                  >
+                    {timedOut
+                      ? "시간 초과… 0점"
+                      : gained > 0
+                        ? `+${fmtPts(gained)}점!`
+                        : "아쉬워요 0점"}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="mb-2 flex items-center justify-between text-xs font-bold">
+                <span className="text-[#6BCB77]">✅ 천천히 생각해도 돼요</span>
+                {gained !== null && (
+                  <span
+                    className="text-lg"
+                    style={{ color: gained > 0 ? "#6BCB77" : "#FF6B9D" }}
+                  >
+                    {gained > 0 ? `+${fmtPts(gained)}점!` : "아쉬워요 0점"}
+                  </span>
+                )}
+              </div>
+            )}
+            {mode === "attack" && (
+              <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${(remaining / config.timeoutMs) * 100}%`,
+                    background: gaugeColor,
+                  }}
+                />
+              </div>
+            )}
 
             <p
               className={`mt-8 text-center font-black ${
