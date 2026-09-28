@@ -19,9 +19,9 @@ import {
 } from "@/lib/quiz";
 import { contentTopics, findTopic } from "@/lib/quiz-content";
 import {
-  addEntry,
+  fetchLeaderboard,
   formatTime,
-  loadLeaderboard,
+  submitScore,
   type LeaderboardEntry,
 } from "@/lib/leaderboard";
 
@@ -66,7 +66,9 @@ export default function QuizPage() {
   const [runDifficulty, setRunDifficulty] = useState(31);
   const [name, setName] = useState("");
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
-  const [savedDate, setSavedDate] = useState<string | null>(null);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardError, setBoardError] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<number | null>(null);
 
   const startRef = useRef<number>(0);
   const gameStartRef = useRef<number>(0);
@@ -92,7 +94,8 @@ export default function QuizPage() {
     setGained(null);
     setTotal(0);
     setRemaining(config.timeoutMs);
-    setSavedDate(null);
+    setSavedId(null);
+    setBoardError(null);
     setRunDifficulty(difficultyScore(config));
     gameStartRef.current = Date.now();
     setPhase("play");
@@ -172,27 +175,41 @@ export default function QuizPage() {
     setCustomRange("");
   }
 
-  function saveScore() {
+  async function saveScore() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const date = new Date().toISOString();
-    setBoard(
-      addEntry({
+    try {
+      setBoardLoading(true);
+      setBoardError(null);
+      const { id, entries } = await submitScore({
         name: trimmed,
         score: total,
         totalSeconds: runSeconds,
-        date,
+        date: new Date().toISOString(),
         difficulty: runDifficulty,
-        ...(topicSlug ? { op: undefined, topic: topicSlug } : { op }),
-      }),
-    );
-    setSavedDate(date);
-    setPhase("board");
+        ...(topicSlug ? { topic: topicSlug } : { op }),
+      });
+      setBoard(entries);
+      setSavedId(id);
+      setPhase("board");
+    } catch (err) {
+      setBoardError((err as Error).message);
+    } finally {
+      setBoardLoading(false);
+    }
   }
 
-  function openBoard() {
-    setBoard(loadLeaderboard());
+  async function openBoard() {
     setPhase("board");
+    setBoardLoading(true);
+    setBoardError(null);
+    try {
+      setBoard(await fetchLeaderboard());
+    } catch (err) {
+      setBoardError((err as Error).message);
+    } finally {
+      setBoardLoading(false);
+    }
   }
 
   const medal =
@@ -687,10 +704,10 @@ export default function QuizPage() {
                 <button
                   type="button"
                   onClick={saveScore}
-                  disabled={!name.trim()}
+                  disabled={!name.trim() || boardLoading}
                   className="rounded-xl bg-[#6BCB77] px-4 py-2 text-sm font-black text-black transition hover:opacity-90 disabled:opacity-30 cursor-pointer"
                 >
-                  저장
+                  {boardLoading ? "저장 중..." : "저장"}
                 </button>
               </div>
               <button
@@ -721,11 +738,29 @@ export default function QuizPage() {
             >
               🏆 리더보드
             </h2>
-            {board.length === 0 ? (
+            {boardError && (
+              <div className="py-6 text-center">
+                <p className="text-sm text-[#FF6B9D]">{boardError}</p>
+                <button
+                  type="button"
+                  onClick={openBoard}
+                  className="mt-3 rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white/70 hover:bg-white/20 cursor-pointer"
+                >
+                  다시 시도
+                </button>
+              </div>
+            )}
+            {!boardError && boardLoading && (
+              <p className="py-8 text-center text-white/50">
+                리더보드를 불러오는 중...
+              </p>
+            )}
+            {!boardError && !boardLoading && board.length === 0 && (
               <p className="py-8 text-center text-white/50">
                 아직 기록이 없어요. 첫 주인이 되어보세요!
               </p>
-            ) : (
+            )}
+            {!boardError && !boardLoading && board.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[460px] text-sm">
                   <thead>
@@ -740,7 +775,7 @@ export default function QuizPage() {
                   </thead>
                   <tbody>
                     {board.map((e, i) => {
-                      const mine = e.date === savedDate;
+                      const mine = e.id !== undefined && e.id === savedId;
                       const prefix = e.topic
                         ? (findTopic(e.topic)?.emoji ?? "📚")
                         : e.op
@@ -748,7 +783,7 @@ export default function QuizPage() {
                           : "✖️";
                       return (
                         <tr
-                          key={e.date + e.name + i}
+                          key={e.id ?? `${e.date}-${i}`}
                           className={`border-t border-white/10 ${mine ? "bg-[#FFD93D]/10 font-black text-[#FFD93D]" : ""}`}
                         >
                           <td className="py-2">{i + 1}</td>
