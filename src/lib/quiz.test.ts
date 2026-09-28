@@ -7,6 +7,7 @@ import {
   shuffle,
   difficultyScore,
   difficultyLabel,
+  distractorStep,
   type QuizConfig,
 } from "./quiz";
 
@@ -119,4 +120,76 @@ test("difficultyLabel: tier names by range", () => {
   assert.equal(difficultyLabel(45), "⚡ 어려움");
   assert.equal(difficultyLabel(70), "🔥🔥 매우 어려움");
   assert.equal(difficultyLabel(95), "👑 극한");
+});
+
+// ---------- four operations ----------
+
+const addCfg = (over: Partial<QuizConfig> = {}): QuizConfig => ({
+  ...DEFAULT_CONFIG,
+  op: "add",
+  ...over,
+});
+
+test("add: sums within the range with valid options", () => {
+  for (let run = 0; run < 20; run++) {
+    const quiz = buildQuiz(addCfg({ rangeMax: 10 }));
+    assert.equal(quiz.length, 5);
+    for (const q of quiz) {
+      assert.ok(q.a >= 1 && q.a <= 10);
+      assert.ok(q.b >= 1 && q.b <= 10);
+      assert.equal(q.answer, q.a + q.b);
+      assert.equal(new Set(q.options).size, q.options.length);
+      assert.ok(q.options.includes(q.answer));
+    }
+  }
+});
+
+test("sub: larger minus smaller, answer never negative", () => {
+  for (let run = 0; run < 20; run++) {
+    for (const q of buildQuiz(addCfg({ op: "sub", rangeMax: 20 }))) {
+      assert.ok(q.a >= q.b);
+      assert.equal(q.answer, q.a - q.b);
+      assert.ok(q.answer >= 0);
+      assert.equal(new Set(q.options).size, q.options.length);
+    }
+  }
+});
+
+test("div: dividend divides cleanly, quotient 1..9, divisor from tables", () => {
+  for (let run = 0; run < 20; run++) {
+    for (const q of buildQuiz(addCfg({ op: "div", tables: [2, 3] }))) {
+      assert.ok([2, 3].includes(q.b)); // divisor is the table
+      assert.equal(q.a % q.b, 0); // dividend divisible
+      assert.equal(q.answer, q.a / q.b);
+      assert.ok(q.answer >= 1 && q.answer <= 9);
+      assert.equal(new Set(q.options).size, q.options.length);
+    }
+  }
+});
+
+test("distractorStep: scales with the range", () => {
+  assert.equal(distractorStep(10), 1);
+  assert.equal(distractorStep(50), 2);
+  assert.equal(distractorStep(100), 4);
+  assert.equal(distractorStep(1000), 40);
+});
+
+test("difficultyScore: grows with add/sub range; div ≡ mul for same table", () => {
+  const r10 = difficultyScore(addCfg({ rangeMax: 10 }));
+  const r100 = difficultyScore(addCfg({ rangeMax: 100 }));
+  const r1000 = difficultyScore(addCfg({ rangeMax: 1000 }));
+  assert.ok(r10 < r100 && r100 < r1000);
+
+  assert.equal(
+    difficultyScore(addCfg({ op: "div" })),
+    difficultyScore(DEFAULT_CONFIG),
+  );
+});
+
+test("buildQuiz: default config still multiplication on table 2", () => {
+  assert.equal(DEFAULT_CONFIG.op, "mul");
+  for (const q of buildQuiz(DEFAULT_CONFIG)) {
+    assert.equal(q.answer, q.a * q.b);
+    assert.equal(q.a, 2);
+  }
 });
