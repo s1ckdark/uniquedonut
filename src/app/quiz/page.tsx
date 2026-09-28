@@ -4,18 +4,18 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DEFAULT_CONFIG,
-  RANGE_CHOICES,
   OP_SYMBOL,
   OP_EMOJI,
   OP_LABEL,
-  buildQuiz,
+  buildPlayQuestions,
   pointsForElapsed,
   difficultyScore,
   difficultyLabel,
   type QuizConfig,
   type QuizOp,
-  type QuizQuestion,
+  type PlayQuestion,
 } from "@/lib/quiz";
+import { contentTopics, findTopic } from "@/lib/quiz-content";
 import {
   addEntry,
   formatTime,
@@ -26,6 +26,7 @@ import {
 const FEEDBACK_MS = 1100;
 const OPTION_CHOICES = [2, 3, 4, 5];
 const TABLE_CHOICES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const RANGE_CHOICES = [10, 20, 50, 100, 1000];
 const OP_CHOICES: QuizOp[] = ["add", "sub", "mul", "div"];
 const usesTables = (op: QuizOp) => op === "mul" || op === "div";
 
@@ -34,7 +35,8 @@ type Phase = "setup" | "play" | "results" | "board";
 const fmtPts = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export default function QuizPage() {
-  // settings
+  // settings — topicSlug null means the math mode
+  const [topicSlug, setTopicSlug] = useState<string | null>(null);
   const [op, setOp] = useState<QuizOp>(DEFAULT_CONFIG.op);
   const [optionCount, setOptionCount] = useState(DEFAULT_CONFIG.optionCount);
   const [tables, setTables] = useState<number[]>(DEFAULT_CONFIG.tables);
@@ -48,9 +50,9 @@ export default function QuizPage() {
 
   // game
   const [phase, setPhase] = useState<Phase>("setup");
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [questions, setQuestions] = useState<PlayQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
-  const [picked, setPicked] = useState<number | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const [gained, setGained] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
@@ -73,12 +75,13 @@ export default function QuizPage() {
     optionCount,
     timeoutMs: timeoutSec * 1000,
     questionCount,
+    ...(topicSlug ? { topic: topicSlug } : {}),
   };
   const question = questions[qIndex];
   const locked = picked !== null || timedOut;
 
   const start = useCallback(() => {
-    setQuestions(buildQuiz(config));
+    setQuestions(buildPlayQuestions(config));
     setQIndex(0);
     setPicked(null);
     setTimedOut(false);
@@ -90,7 +93,7 @@ export default function QuizPage() {
     gameStartRef.current = Date.now();
     setPhase("play");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [op, optionCount, tables, rangeMax, timeoutSec, questionCount]);
+  }, [topicSlug, op, optionCount, tables, rangeMax, timeoutSec, questionCount]);
 
   // Countdown while a question is live.
   useEffect(() => {
@@ -130,7 +133,7 @@ export default function QuizPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, locked, qIndex]);
 
-  function pick(option: number) {
+  function pick(option: string) {
     if (locked || !question) return;
     const elapsed = Date.now() - startRef.current;
     const correct = option === question.answer;
@@ -173,7 +176,7 @@ export default function QuizPage() {
         totalSeconds: runSeconds,
         date,
         difficulty: runDifficulty,
-        op,
+        ...(topicSlug ? { op: undefined, topic: topicSlug } : { op }),
       }),
     );
     setSavedDate(date);
@@ -200,6 +203,9 @@ export default function QuizPage() {
       : remaining > config.timeoutMs * 0.3
         ? "#FFD93D"
         : "#FF6B6B";
+
+  const canStart = topicSlug !== null || tables.length > 0;
+  const selectedTopic = topicSlug ? findTopic(topicSlug) : undefined;
 
   return (
     <div className="min-h-screen bg-[#1A0A2E] text-[#FEFEFE]">
@@ -245,146 +251,196 @@ export default function QuizPage() {
             className="mt-3 text-lg tracking-widest uppercase"
             style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
           >
-            구구단 포인트 챌린지 ⚡
+            공부한 이야기로 포인트 챌린지 ⚡
           </p>
         </header>
 
         {/* ---------- setup ---------- */}
         {phase === "setup" && (
           <div className="space-y-5">
+            {/* topic selector: math or a content story */}
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-sm font-bold text-white/70">연산 고르기</p>
-              <div className="flex gap-2">
-                {OP_CHOICES.map((o) => (
+              <p className="mb-3 text-sm font-bold text-white/70">주제 고르기</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTopicSlug(null)}
+                  className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
+                    topicSlug === null
+                      ? "bg-[#6BCB77] text-black"
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
+                  }`}
+                >
+                  🧮 산수
+                </button>
+                {contentTopics.map((t) => (
                   <button
-                    key={o}
+                    key={t.slug}
                     type="button"
-                    onClick={() => setOp(o)}
-                    className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
-                      op === o
+                    onClick={() => setTopicSlug(t.slug)}
+                    className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
+                      topicSlug === t.slug
                         ? "bg-[#6BCB77] text-black"
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
                   >
-                    {OP_EMOJI[o]} {OP_LABEL[o]}
+                    {t.emoji} {t.name}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-sm font-bold text-white/70">선택지 수</p>
-              <div className="flex gap-2">
-                {OPTION_CHOICES.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setOptionCount(n)}
-                    className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
-                      optionCount === n
-                        ? "bg-[#FFD93D] text-black"
-                        : "bg-white/10 text-white/70 hover:bg-white/20"
-                    }`}
-                  >
-                    {n}지선다
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {usesTables(op) ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="mb-3 text-sm font-bold text-white/70">
-                  구구단 단 (여러 개 선택 가능)
+              {selectedTopic && (
+                <p className="mt-3 text-xs text-white/50">
+                  {selectedTopic.emoji} {selectedTopic.name} 이야기에서 출제돼요
+                  · 문제는 4지선다 고정
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {TABLE_CHOICES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => toggleTable(t)}
-                      className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
-                        tables.includes(t)
-                          ? "bg-[#FF6B9D] text-black"
-                          : "bg-white/10 text-white/70 hover:bg-white/20"
-                      }`}
-                    >
-                      {t}단
-                    </button>
-                  ))}
-                  {tables
-                    .filter((t) => t > 10)
-                    .map((t) => (
+              )}
+            </div>
+
+            {!topicSlug && (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <p className="mb-3 text-sm font-bold text-white/70">
+                    연산 고르기
+                  </p>
+                  <div className="flex gap-2">
+                    {OP_CHOICES.map((o) => (
                       <button
-                        key={t}
+                        key={o}
                         type="button"
-                        onClick={() => toggleTable(t)}
-                        className="rounded-full bg-[#FF6B9D] px-4 py-2 text-sm font-bold text-black transition cursor-pointer"
+                        onClick={() => setOp(o)}
+                        className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                          op === o
+                            ? "bg-[#6BCB77] text-black"
+                            : "bg-white/10 text-white/70 hover:bg-white/20"
+                        }`}
                       >
-                        {t}단 ✕
+                        {OP_EMOJI[o]} {OP_LABEL[o]}
                       </button>
                     ))}
+                  </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <input
-                    value={customTable}
-                    onChange={(e) => setCustomTable(e.target.value.replace(/\D/g, ""))}
-                    placeholder="11단 이상 직접 입력"
-                    className="w-36 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD93D]"
-                    aria-label="직접 단 입력"
-                  />
-                  <button
-                    type="button"
-                    onClick={addCustomTable}
-                    className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white/80 transition hover:bg-white/20 cursor-pointer"
-                  >
-                    추가
-                  </button>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                  <p className="mb-3 text-sm font-bold text-white/70">
+                    선택지 수
+                  </p>
+                  <div className="flex gap-2">
+                    {OPTION_CHOICES.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setOptionCount(n)}
+                        className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                          optionCount === n
+                            ? "bg-[#FFD93D] text-black"
+                            : "bg-white/10 text-white/70 hover:bg-white/20"
+                        }`}
+                      >
+                        {n}지선다
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <p className="mb-3 text-sm font-bold text-white/70">
-                  숫자 범위 ({OP_EMOJI[op]} {OP_LABEL[op]} 범위)
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {RANGE_CHOICES.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setRangeMax(r)}
-                      className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
-                        rangeMax === r
-                          ? "bg-[#FF6B9D] text-black"
-                          : "bg-white/10 text-white/70 hover:bg-white/20"
-                      }`}
-                    >
-                      {r}까지
-                    </button>
-                  ))}
-                  {!RANGE_CHOICES.includes(rangeMax) && (
-                    <span className="rounded-full bg-[#FF6B9D] px-4 py-2 text-sm font-bold text-black">
-                      {rangeMax}까지 ✕
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <input
-                    value={customRange}
-                    onChange={(e) => setCustomRange(e.target.value.replace(/\D/g, ""))}
-                    placeholder="범위 직접 입력 (10~10000)"
-                    className="w-44 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD93D]"
-                    aria-label="직접 범위 입력"
-                  />
-                  <button
-                    type="button"
-                    onClick={addCustomRange}
-                    className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white/80 transition hover:bg-white/20 cursor-pointer"
-                  >
-                    추가
-                  </button>
-                </div>
-              </div>
+
+                {usesTables(op) ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                    <p className="mb-3 text-sm font-bold text-white/70">
+                      구구단 단 (여러 개 선택 가능)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {TABLE_CHOICES.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => toggleTable(t)}
+                          className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
+                            tables.includes(t)
+                              ? "bg-[#FF6B9D] text-black"
+                              : "bg-white/10 text-white/70 hover:bg-white/20"
+                          }`}
+                        >
+                          {t}단
+                        </button>
+                      ))}
+                      {tables
+                        .filter((t) => t > 10)
+                        .map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => toggleTable(t)}
+                            className="rounded-full bg-[#FF6B9D] px-4 py-2 text-sm font-bold text-black transition cursor-pointer"
+                          >
+                            {t}단 ✕
+                          </button>
+                        ))}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        value={customTable}
+                        onChange={(e) =>
+                          setCustomTable(e.target.value.replace(/\D/g, ""))
+                        }
+                        placeholder="11단 이상 직접 입력"
+                        className="w-36 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD93D]"
+                        aria-label="직접 단 입력"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomTable}
+                        className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white/80 transition hover:bg-white/20 cursor-pointer"
+                      >
+                        추가
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                    <p className="mb-3 text-sm font-bold text-white/70">
+                      숫자 범위 ({OP_EMOJI[op]} {OP_LABEL[op]} 범위)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {RANGE_CHOICES.map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setRangeMax(r)}
+                          className={`rounded-full px-4 py-2 text-sm font-bold transition cursor-pointer ${
+                            rangeMax === r
+                              ? "bg-[#FF6B9D] text-black"
+                              : "bg-white/10 text-white/70 hover:bg-white/20"
+                          }`}
+                        >
+                          {r}까지
+                        </button>
+                      ))}
+                      {!RANGE_CHOICES.includes(rangeMax) && (
+                        <span className="rounded-full bg-[#FF6B9D] px-4 py-2 text-sm font-bold text-black">
+                          {rangeMax}까지 ✕
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        value={customRange}
+                        onChange={(e) =>
+                          setCustomRange(e.target.value.replace(/\D/g, ""))
+                        }
+                        placeholder="범위 직접 입력 (10~10000)"
+                        className="w-44 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#FFD93D]"
+                        aria-label="직접 범위 입력"
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomRange}
+                        className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-white/80 transition hover:bg-white/20 cursor-pointer"
+                      >
+                        추가
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -432,10 +488,10 @@ export default function QuizPage() {
                 <button
                   type="button"
                   onClick={start}
-                  disabled={tables.length === 0}
+                  disabled={!canStart}
                   className="rounded-full bg-gradient-to-r from-[#FFD93D] to-[#FF8C42] px-10 py-4 text-xl font-black text-black transition hover:scale-105 active:scale-95 disabled:opacity-30 cursor-pointer"
                 >
-                  {tables.length === 0 ? "단을 골라주세요!" : "시작! 🚀"}
+                  {!canStart ? "단을 골라주세요!" : "시작! 🚀"}
                 </button>
               </div>
               <p className="mt-2 text-xs text-white/40">
@@ -476,16 +532,17 @@ export default function QuizPage() {
             </div>
 
             <p
-              className="mt-8 text-center text-6xl font-black"
+              className={`mt-8 text-center font-black ${
+                topicSlug
+                  ? "text-2xl leading-relaxed md:text-3xl"
+                  : "text-6xl"
+              }`}
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {question.a} {OP_SYMBOL[op]} {question.b} = ?
+              {topicSlug ? question.display : `${question.display}`}
             </p>
 
-            <div
-              className={`mt-8 grid gap-4 ${optionCount >= 4 ? "grid-cols-2" : "grid-cols-" + Math.min(optionCount, 3)}`}
-              style={{ gridTemplateColumns: `repeat(${Math.min(optionCount, 3)}, minmax(0, 1fr))` }}
-            >
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {question.options.map((opt) => {
                 const isPicked = picked === opt;
                 const revealCorrect = locked && opt === question.answer;
@@ -500,14 +557,20 @@ export default function QuizPage() {
                     type="button"
                     onClick={() => pick(opt)}
                     disabled={locked}
-                    className={`min-h-[64px] rounded-2xl border-2 text-3xl font-black transition cursor-pointer ${
+                    className={`rounded-2xl border-2 transition cursor-pointer ${
+                      topicSlug
+                        ? "min-h-[56px] px-4 py-3 text-base leading-snug"
+                        : "min-h-[64px] text-3xl"
+                    } ${
                       state === "correct"
                         ? "border-[#6BCB77] bg-[#6BCB77]/25 text-[#6BCB77]"
                         : state === "wrong"
                           ? "animate-shake border-[#FF6B9D]/50 bg-[#FF6B9D]/15 text-white/40"
-                          : "border-white/15 bg-black/30 text-white hover:border-[#FFD93D] hover:scale-[1.03]"
+                          : "border-white/15 bg-black/30 text-white hover:border-[#FFD93D] hover:scale-[1.02]"
                     }`}
-                    style={{ fontFamily: "var(--font-space-grotesk)" }}
+                    style={
+                      topicSlug ? undefined : { fontFamily: "var(--font-space-grotesk)" }
+                    }
                   >
                     {opt}
                   </button>
@@ -516,8 +579,8 @@ export default function QuizPage() {
             </div>
 
             {locked && !timedOut && picked !== question.answer && (
-              <p className="mt-4 text-center text-lg text-[#FFD93D]">
-                정답은 {question.answer}!
+              <p className="mt-4 text-center text-base text-[#FFD93D]">
+                정답은 “{question.answer}”!
               </p>
             )}
           </div>
@@ -549,7 +612,6 @@ export default function QuizPage() {
               {medal.msg}
             </p>
 
-            {/* save prompt */}
             <div className="mx-auto mt-6 max-w-xs rounded-2xl border border-[#6BCB77]/30 bg-[#6BCB77]/10 p-4">
               <p className="text-sm font-bold text-white/80">
                 🏆 리더보드에 남길까요?
@@ -619,6 +681,11 @@ export default function QuizPage() {
                   <tbody>
                     {board.map((e, i) => {
                       const mine = e.date === savedDate;
+                      const prefix = e.topic
+                        ? (findTopic(e.topic)?.emoji ?? "📚")
+                        : e.op
+                          ? OP_EMOJI[e.op as QuizOp]
+                          : "✖️";
                       return (
                         <tr
                           key={e.date + e.name + i}
@@ -626,7 +693,7 @@ export default function QuizPage() {
                         >
                           <td className="py-2">{i + 1}</td>
                           <td className="py-2">
-                            {e.op ? OP_EMOJI[e.op as QuizOp] : "✖️"} {e.name}
+                            {prefix} {e.name}
                           </td>
                           <td className="py-2">{fmtPts(e.score)}</td>
                           <td className="py-2 font-mono">

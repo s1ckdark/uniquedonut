@@ -212,6 +212,7 @@ test("buildPlayQuestions: math config renders 'a sym b = ?' with string options"
 test("buildPlayQuestions: content topic uses the bank, count respected", () => {
   const cfg: QuizConfig = { ...DEFAULT_CONFIG, topic: "sleep-grow" };
   const topic = findTopic("sleep-grow");
+  assert.ok(topic);
   const plays = buildPlayQuestions(cfg);
   assert.equal(plays.length, 5);
   const prompts = new Set(plays.map((p) => p.display));
