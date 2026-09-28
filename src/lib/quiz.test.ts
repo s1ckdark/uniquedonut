@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_CONFIG,
   buildQuiz,
+  buildDailyMathQuiz,
   buildPlayQuestions,
   pointsForElapsed,
   pointsForCorrect,
@@ -255,4 +256,50 @@ test("difficultyScore: topic = base + timeout + count, no option part", () => {
   assert.equal(difficultyScore(cfg), 52);
   // longer game adds the count part
   assert.equal(difficultyScore({ ...cfg, questionCount: 10 }), 57);
+});
+
+// ---------- daily math set (오늘의 산수) ----------
+
+test("buildDailyMathQuiz: deterministic for the same date and level", () => {
+  const a = buildDailyMathQuiz("2026-09-29", "normal");
+  const b = buildDailyMathQuiz("2026-09-29", "normal");
+  assert.deepEqual(a, b);
+  assert.equal(a.length, 10);
+});
+
+test("buildDailyMathQuiz: different dates or levels give different sets", () => {
+  const today = buildDailyMathQuiz("2026-09-29", "normal");
+  const tomorrow = buildDailyMathQuiz("2026-09-30", "normal");
+  const hard = buildDailyMathQuiz("2026-09-29", "hard");
+  assert.notDeepEqual(today, tomorrow);
+  assert.notDeepEqual(today, hard);
+});
+
+test("buildDailyMathQuiz: all four operations appear, options valid", () => {
+  const quiz = buildDailyMathQuiz("2026-09-29", "easy");
+  const opKinds = new Set<string>();
+  for (const q of quiz) {
+    assert.equal(q.options.length, 4);
+    assert.equal(new Set(q.options).size, 4);
+    assert.ok(q.options.includes(q.answer));
+    // classify: divisible pair with small numbers → div; else infer from answer
+    opKinds.add(q.a % q.b === 0 && q.b <= 5 && q.a / q.b === q.answer ? "div" : "other");
+  }
+  assert.ok(opKinds.has("div"));
+  assert.ok(quiz.some((q) => q.answer === q.a + q.b), "add present");
+  assert.ok(quiz.some((q) => q.answer === q.a - q.b), "sub present");
+  assert.ok(quiz.some((q) => q.answer === q.a * q.b), "mul present");
+});
+
+test("buildDailyMathQuiz: operand bounds grow with the level", () => {
+  const easy = buildDailyMathQuiz("2026-09-29", "easy");
+  const hard = buildDailyMathQuiz("2026-09-29", "hard");
+  const isDiv = (q: { a: number; b: number; answer: number }) =>
+    q.a % q.b === 0 && q.answer === q.a / q.b;
+  for (const q of easy) {
+    if (isDiv(q)) continue; // dividend size isn't the difficulty driver for div
+    assert.ok(Math.max(q.a, q.b) <= 10, `easy operand ≤ 10 (${q.a}, ${q.b})`);
+  }
+  const hardMax = Math.max(...hard.flatMap((q) => [q.a, q.b]));
+  assert.ok(hardMax > 50, "hard reaches beyond 50");
 });

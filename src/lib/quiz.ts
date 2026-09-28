@@ -63,12 +63,28 @@ export interface QuizQuestion {
 
 /** Fisher–Yates shuffle; returns a new array, input untouched. */
 export function shuffle<T>(arr: T[]): T[] {
+  return shuffleWith(arr, Math.random);
+}
+
+/** Seeded shuffle — the engine behind deterministic daily sets. */
+export function shuffleWith<T>(arr: T[], rng: () => number): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
+}
+
+/** Deterministic PRNG (mulberry32) — same seed, same sequence. */
+export function mulberry32(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -88,17 +104,20 @@ function assemble(
   answer: number,
   optionCount: number,
   distractorPool: number[],
+  rng: () => number,
 ): QuizQuestion {
-  const distractors = shuffle(
+  const distractors = shuffleWith(
     [...new Set(distractorPool.filter((v) => v > 0 && v !== answer))],
+    rng,
   ).slice(0, optionCount - 1);
-  return { a, b, answer, options: shuffle([answer, ...distractors]) };
+  return { a, b, answer, options: shuffleWith([answer, ...distractors], rng) };
 }
 
 function mulQuestion(
   a: number,
   b: number,
   optionCount: number,
+  rng: () => number = Math.random,
 ): QuizQuestion {
   const answer = a * b;
   const pool = [
@@ -106,37 +125,41 @@ function mulQuestion(
     answer + 1, answer + 2, answer + 3, answer + 4,
     (a - 1) * b, (a + 1) * b,
   ];
-  return assemble(a, b, answer, optionCount, pool);
+  return assemble(a, b, answer, optionCount, pool, rng);
 }
 
 function divQuestion(
   table: number,
   quotient: number,
   optionCount: number,
+  rng: () => number = Math.random,
 ): QuizQuestion {
   const pool = [
     quotient - 4, quotient - 3, quotient - 2, quotient - 1,
     quotient + 1, quotient + 2, quotient + 3, quotient + 4,
   ];
-  return assemble(table * quotient, table, quotient, optionCount, pool);
+  return assemble(table * quotient, table, quotient, optionCount, pool, rng);
 }
 
 function rangeQuestion(
-  config: QuizConfig,
+  op: "add" | "sub",
+  rangeMax: number,
+  optionCount: number,
+  rng: () => number,
   a: number,
   b: number,
 ): QuizQuestion {
-  const step = distractorStep(config.rangeMax);
-  if (config.op === "add") {
+  const step = distractorStep(rangeMax);
+  if (op === "add") {
     const answer = a + b;
     const pool = [1, 2, 3, 4].flatMap((k) => [answer - k * step, answer + k * step]);
-    return assemble(a, b, answer, config.optionCount, pool);
+    return assemble(a, b, answer, optionCount, pool, rng);
   }
   // sub: bigger − smaller so the answer is never negative
   const [hi, lo] = a >= b ? [a, b] : [b, a];
   const answer = hi - lo;
   const pool = [1, 2, 3, 4].flatMap((k) => [answer - k * step, answer + k * step]);
-  return assemble(hi, lo, answer, config.optionCount, pool);
+  return assemble(hi, lo, answer, optionCount, pool, rng);
 }
 
 /** Questions for mul/div: sampled from tables×1..9, no repeats until the
@@ -172,12 +195,68 @@ function buildRangeQuiz(config: QuizConfig): QuizQuestion[] {
     const key = config.op === "sub" ? [Math.max(a, b), Math.min(a, b)].join(",") : `${a},${b}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    questions.push(rangeQuestion(config, a, b));
+    questions.push(
+      rangeQuestion(config.op, config.rangeMax, config.optionCount, Math.random, a, b),
+    );
   }
   while (questions.length < config.questionCount) {
-    questions.push(rangeQuestion(config, rand(), rand()));
+    questions.push(
+      rangeQuestion(config.op, config.rangeMax, config.optionCount, Math.random, rand(), rand()),
+    );
   }
   return questions;
+}
+
+// ---------- 오늘의 산수 (date-seeded daily set) ----------
+
+export type DailyLevel = "easy" | "normal" | "hard";
+
+const DAILY_LEVELS: Record<
+  DailyLevel,
+  { opsRange: number; mulMax: number; divMax: number; seedOffset: number }
+> = {
+  easy: { opsRange: 10, mulMax: 5, divMax: 5, seedOffset: 1 },
+  normal: { opsRange: 50, mulMax: 9, divMax: 9, seedOffset: 2 },
+  hard: { opsRange: 100, mulMax: 12, divMax: 12, seedOffset: 3 },
+};
+
+/** The day's 10-question mixed-ops set. Seeded by (date, level) so everyone
+ *  playing on the same day gets the same questions — a fresh set lands at
+ *  midnight. All four operations are guaranteed to appear. */
+export function buildDailyMathQuiz(
+  dateStr: string, // "YYYY-MM-DD"
+  level: DailyLevel,
+  questionCount = 10,
+  optionCount = 4,
+): QuizQuestion[] {
+  const digits = Number(dateStr.replace(/-/g, ""));
+  const cfg = DAILY_LEVELS[level];
+  const rng = mulberry32(digits * 10 + cfg.seedOffset);
+  const pick = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
+
+  // Shuffled op pattern with every operation appearing at least twice.
+  const pattern = shuffleWith(
+    ["add", "sub", "mul", "div", "add", "sub", "mul", "div", "mul", "div"],
+    rng,
+  );
+
+  return Array.from({ length: questionCount }, (_, i) => {
+    const op = pattern[i % pattern.length];
+    if (op === "mul") {
+      return mulQuestion(pick(2, cfg.mulMax), pick(1, 9), optionCount, rng);
+    }
+    if (op === "div") {
+      return divQuestion(pick(2, cfg.divMax), pick(1, 9), optionCount, rng);
+    }
+    return rangeQuestion(
+      op as "add" | "sub",
+      cfg.opsRange,
+      optionCount,
+      rng,
+      pick(1, cfg.opsRange),
+      pick(1, cfg.opsRange),
+    );
+  });
 }
 
 /** A game's questions for any operation. */
