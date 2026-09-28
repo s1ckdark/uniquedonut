@@ -85,7 +85,7 @@ export const ginoContents: GinoContent[] = [
   {
     slug: "quiz-arena",
     name: "구구단 챌린지",
-    description: "5초 안에 맞혀 포인트!",
+    description: "내 맘대로 설정하는 포인트 퀴즈",
     href: "/quiz",
     emoji: "⚡",
     color: "#FFD93D",
