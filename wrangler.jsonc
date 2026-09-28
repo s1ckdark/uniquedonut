@@ -1,20 +1,21 @@
 {
-  "name": "uniquedonut",
-  "main": ".open-next/worker.js",
-  "compatibility_date": "2024-12-30",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-  // Quiz leaderboard storage. Create the database once and paste its id:
-  //   npx wrangler login && npx wrangler d1 create uniquedonut-db
-  // Local dev works with the placeholder id (miniflare simulates D1).
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "uniquedonut-db",
-      "database_id": "PLACEHOLDER-REPLACE-AFTER-wrangler-d1-create"
-    }
-  ]
+	"name": "uniquedonut",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2024-12-30",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	// Quiz leaderboard storage (Cloudflare D1).
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "uniquedonut-db",
+			"database_id": "a163b893-7298-41fc-bc5f-5b2fbc5ab6cb"
+		}
+	]
 }
