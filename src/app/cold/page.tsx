@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import ColdArt from "@/components/ColdArt";
 import { coldScenes } from "@/lib/cold";
@@ -116,6 +117,7 @@ export default function ColdPage() {
             )}
           </div>
         </div>
+        <ContentQuiz topicSlug="cold-story" />
       </main>
     </div>
   );

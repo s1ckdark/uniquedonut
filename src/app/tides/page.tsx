@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useEffect, useRef, useState } from "react";
 import TidesSpace from "@/components/TidesSpace";
 import TidesBeach from "@/components/TidesBeach";
@@ -220,6 +221,7 @@ export default function TidesPage() {
             슬라이더를 돌려 확인해 보세요! ☀️
           </p>
         </section>
+        <ContentQuiz topicSlug="moon-tides" />
       </main>
     </div>
   );

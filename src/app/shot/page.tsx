@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import ShotArt from "@/components/ShotArt";
 import { shotScenes } from "@/lib/shot";
@@ -116,6 +117,8 @@ export default function ShotPage() {
             )}
           </div>
         </div>
+
+        <ContentQuiz topicSlug="shot-shield" />
 
         {/* cross-link to the prequel */}
         <p className="mt-6 text-center text-sm text-white/50">

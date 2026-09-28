@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import SapTree from "@/components/SapTree";
 import BeetleArt from "@/components/BeetleArt";
@@ -186,6 +187,7 @@ export default function SapPage() {
             방법은 정말 다양해요! 🦗🦀🦋
           </p>
         </section>
+        <ContentQuiz topicSlug="sap-tree" />
       </main>
     </div>
   );

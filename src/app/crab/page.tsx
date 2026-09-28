@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import CrabGrowth from "@/components/CrabGrowth";
 
 export default function CrabPage() {
@@ -68,6 +69,7 @@ export default function CrabPage() {
             것도 신기한 변신이랍니다. 🦋🦗🦀
           </p>
         </section>
+        <ContentQuiz topicSlug="crab-life" />
       </main>
     </div>
   );

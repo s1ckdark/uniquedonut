@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import MantisArt from "@/components/MantisArt";
 import MantisGrowth from "@/components/MantisGrowth";
@@ -143,6 +144,7 @@ export default function MantisPage() {
             <b>불완전변태</b>라고 불러요. 잠자리, 메뚜기도 이 방식으로 자란답니다!
           </p>
         </section>
+        <ContentQuiz topicSlug="mantis-diary" />
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import IdiomArt from "@/components/IdiomArt";
 import { idiomScenes } from "@/lib/idiom";
@@ -116,6 +117,7 @@ export default function IdiomPage() {
             )}
           </div>
         </div>
+        <ContentQuiz topicSlug="idiom-cheongoma" />
       </main>
     </div>
   );

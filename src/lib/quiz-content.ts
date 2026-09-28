@@ -11,6 +11,7 @@ export interface ContentTopic {
   slug: string; // matches the gino content slug
   name: string;
   emoji: string;
+  color: string; // matches the gino hub card color
   baseDifficulty: number; // 0–100, the topic's share before timeout/count
   questions: ContentQuestion[];
 }
@@ -20,6 +21,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "moon-tides",
     name: "달과 바다",
     emoji: "🌊",
+    color: "#00ccff",
     baseDifficulty: 40,
     questions: [
       {
@@ -58,6 +60,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "mantis-diary",
     name: "사마귀 관찰",
     emoji: "🦗",
+    color: "#6BCB77",
     baseDifficulty: 34,
     questions: [
       {
@@ -96,6 +99,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "crab-life",
     name: "꽃게의 일생",
     emoji: "🦀",
+    color: "#FF8C42",
     baseDifficulty: 34,
     questions: [
       {
@@ -139,6 +143,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "sap-tree",
     name: "수액 나무 친구들",
     emoji: "🪲",
+    color: "#FF6B9D",
     baseDifficulty: 34,
     questions: [
       {
@@ -177,6 +182,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "cold-story",
     name: "감기 이야기",
     emoji: "🤧",
+    color: "#9b5de5",
     baseDifficulty: 30,
     questions: [
       {
@@ -220,6 +226,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "shot-shield",
     name: "주사와 방패",
     emoji: "💉",
+    color: "#4895ef",
     baseDifficulty: 32,
     questions: [
       {
@@ -268,6 +275,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "sleep-grow",
     name: "키 크는 잠",
     emoji: "😴",
+    color: "#f4a261",
     baseDifficulty: 30,
     questions: [
       {
@@ -316,6 +324,7 @@ export const contentTopics: ContentTopic[] = [
     slug: "idiom-cheongoma",
     name: "천고마비",
     emoji: "🐎",
+    color: "#e76f51",
     baseDifficulty: 28,
     questions: [
       {

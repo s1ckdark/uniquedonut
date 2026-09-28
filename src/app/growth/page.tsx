@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ContentQuiz from "@/components/ContentQuiz";
 import { useState } from "react";
 import GrowthDay from "@/components/GrowthDay";
 import {
@@ -210,6 +211,7 @@ export default function GrowthPage() {
             </div>
           ))}
         </section>
+        <ContentQuiz topicSlug="sleep-grow" />
       </main>
     </div>
   );
