@@ -85,9 +85,17 @@ export const ginoContents: GinoContent[] = [
   {
     slug: "quiz-arena",
     name: "구구단 챌린지",
-    description: "내 맘대로 설정하는 포인트 퀴즈",
-    href: "/quiz",
+    description: "단을 골라 빠르게 풀는 포인트전",
+    href: "/gugudan",
     emoji: "⚡",
     color: "#FFD93D",
+  },
+  {
+    slug: "daily-math",
+    name: "산수 놀이터",
+    description: "매일매일 오늘의 산수 10문제",
+    href: "/arithmetic",
+    emoji: "🧮",
+    color: "#FF8C42",
   },
 ];
