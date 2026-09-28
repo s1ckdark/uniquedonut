@@ -5,6 +5,7 @@ import {
   buildQuiz,
   buildPlayQuestions,
   pointsForElapsed,
+  pointsForCorrect,
   shuffle,
   difficultyScore,
   difficultyLabel,
@@ -195,6 +196,25 @@ test("buildQuiz: default config still multiplication on table 2", () => {
     assert.equal(q.answer, q.a * q.b);
     assert.equal(q.a, 2);
   }
+});
+
+// ---------- game modes: attack vs free ----------
+
+test("default mode is time attack", () => {
+  assert.equal(DEFAULT_CONFIG.mode, "attack");
+});
+
+test("pointsForCorrect: fixed per-question value in free mode", () => {
+  assert.equal(pointsForCorrect(DEFAULT_CONFIG), 20); // 100 / 5
+  const eight: QuizConfig = { ...DEFAULT_CONFIG, questionCount: 8 };
+  assert.equal(pointsForCorrect(eight), 12.5);
+});
+
+test("difficultyScore: free mode drops the timeout part", () => {
+  // default attack = 31 (table 4 + options 5 + timeout 22); free = 9
+  const free: QuizConfig = { ...DEFAULT_CONFIG, mode: "free" };
+  assert.equal(difficultyScore(free), 9);
+  assert.ok(difficultyScore(free) < difficultyScore(DEFAULT_CONFIG));
 });
 
 // ---------- unified play questions (math + content topics) ----------

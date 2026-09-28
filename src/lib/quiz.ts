@@ -5,12 +5,17 @@ import { findTopic } from "./quiz-content";
 
 export type QuizOp = "add" | "sub" | "mul" | "div";
 
+/** attack: speed scoring with a per-question timeout (the classic rules).
+ *  free: no time pressure — every correct answer is worth a fixed value. */
+export type QuizMode = "attack" | "free";
+
 export interface QuizConfig {
   op: QuizOp;
+  mode: QuizMode;
   tables: number[]; // mul/div: which times tables
   rangeMax: number; // add/sub: operand upper bound
   optionCount: number; // 2..5
-  timeoutMs: number; // per-question timeout
+  timeoutMs: number; // per-question timeout (attack mode only)
   questionCount: number; // total questions in a game
   topic?: string; // content-topic slug — when set, math fields are ignored
 }
@@ -20,6 +25,7 @@ export const RANGE_CHOICES = [10, 20, 50, 100, 1000];
 
 export const DEFAULT_CONFIG: QuizConfig = {
   op: "mul",
+  mode: "attack",
   tables: [2],
   rangeMax: 10,
   optionCount: 3,
@@ -223,13 +229,22 @@ export function pointsForElapsed(ms: number, config: QuizConfig): number {
   return round1((perQuestion * (buckets - elapsedSec)) / buckets);
 }
 
+/** Free-mode scoring: a correct answer is always worth the same. */
+export function pointsForCorrect(config: QuizConfig): number {
+  return round1(MAX_TOTAL_POINTS / config.questionCount);
+}
+
 /** Quantified difficulty of a config, 0–100.
  *  Range axis — mul/div: (highest table − 1) × 4, +2 per extra table (cap 6);
  *  add/sub: log-scaled from the operand range (10→9 … 1000→44).
  *  Common parts — options (max 15): (optionCount − 2) × 5;
  *  timeout (max 24): (16 − seconds) × 2; questions (max 15): count − 5. */
 export function difficultyScore(config: QuizConfig): number {
-  const timeoutPts = clamp((16 - config.timeoutMs / 1000) * 2, 0, 24);
+  // Free mode has no time pressure, so the timeout part scores zero.
+  const timeoutPts =
+    config.mode === "free"
+      ? 0
+      : clamp((16 - config.timeoutMs / 1000) * 2, 0, 24);
   const countPts = config.questionCount - 5;
 
   // Content-topic runs: the topic's base + timeout + count (no option part).
