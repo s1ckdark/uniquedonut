@@ -27,6 +27,21 @@ test("sanitizeEntry: rejects bad names, scores, and times", () => {
   assert.equal(sanitizeEntry("not-an-object"), null);
 });
 
+test("sanitizeEntry: difficulty optional but validated when present", () => {
+  const withDiff = sanitizeEntry(entry({ difficulty: 31 }));
+  assert.ok(withDiff);
+  assert.equal(withDiff.difficulty, 31);
+
+  // legacy entries without difficulty survive (field stays undefined)
+  const raw = { name: "옛날기록", score: 20, totalSeconds: 30, date: "2026-09-01" };
+  const legacy = sanitizeEntry(raw);
+  assert.ok(legacy);
+  assert.equal(legacy.difficulty, undefined);
+
+  assert.equal(sanitizeEntry(entry({ difficulty: 101 })), null);
+  assert.equal(sanitizeEntry(entry({ difficulty: -5 })), null);
+});
+
 test("sortEntries: score desc, then faster time wins ties", () => {
   const sorted = sortEntries([
     entry({ name: "A", score: 30, totalSeconds: 10 }),
