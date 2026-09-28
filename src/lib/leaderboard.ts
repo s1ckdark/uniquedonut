@@ -5,6 +5,7 @@
 export interface LeaderboardEntry {
   id?: number; // DB row id — present for entries fetched from the API
   name: string;
+  school?: string; // elementary school name, e.g. "위니초"
   score: number;
   totalSeconds: number;
   date: string; // ISO date
@@ -19,12 +20,15 @@ const VALID_OPS = ["add", "sub", "mul", "div"];
  *  Returns null when anything is out of range. */
 export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { id, name, score, totalSeconds, date, difficulty, op, topic } = raw as Record<
+  const { id, name, school, score, totalSeconds, date, difficulty, op, topic } = raw as Record<
     string,
     unknown
   >;
   const trimmed = typeof name === "string" ? name.trim() : "";
   if (trimmed.length < 1 || trimmed.length > 12) return null;
+  const schoolTrimmed =
+    typeof school === "string" ? school.trim() : undefined;
+  if (schoolTrimmed !== undefined && schoolTrimmed.length > 16) return null;
   if (typeof score !== "number" || score < 0 || score > 100) return null;
   if (
     typeof totalSeconds !== "number" ||
@@ -50,6 +54,7 @@ export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   return {
     ...(typeof id === "number" ? { id } : {}),
     name: trimmed,
+    ...(schoolTrimmed ? { school: schoolTrimmed } : {}),
     score,
     totalSeconds,
     date: typeof date === "string" ? date : new Date().toISOString(),

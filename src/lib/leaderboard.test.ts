@@ -72,11 +72,23 @@ test("sanitizeEntry: passes a valid DB row id through, rejects bad ones", () => 
   assert.ok(withId);
   assert.equal(withId.id, 42);
 
-  assert.equal(sanitizeEntry(entry({ id: "42" })), null);
+  assert.equal(sanitizeEntry({ ...entry(), id: "42" }), null);
 
   const noId = sanitizeEntry(entry({}));
   assert.ok(noId);
   assert.equal(noId.id, undefined);
+});
+
+test("sanitizeEntry: school is optional, trimmed, capped at 16 chars", () => {
+  const withSchool = sanitizeEntry(entry({ school: "  위니초  " }));
+  assert.ok(withSchool);
+  assert.equal(withSchool.school, "위니초");
+
+  assert.equal(sanitizeEntry(entry({ school: "학".repeat(17) })), null);
+
+  const noSchool = sanitizeEntry(entry({ school: "   " }));
+  assert.ok(noSchool);
+  assert.equal(noSchool.school, undefined);
 });
 
 test("sortEntries: score desc, then faster time wins ties", () => {

@@ -31,6 +31,7 @@ interface D1Database {
 interface ScoreRow {
   id: number;
   name: string;
+  school: string | null;
   score: number;
   total_seconds: number;
   difficulty: number | null;
@@ -42,6 +43,7 @@ interface ScoreRow {
 const BOOTSTRAP_SQL = `CREATE TABLE IF NOT EXISTS scores (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  school TEXT,
   score REAL NOT NULL,
   total_seconds REAL NOT NULL,
   difficulty INTEGER,
@@ -57,6 +59,13 @@ async function getDb(): Promise<D1Database> {
     throw new Error("D1 binding 'DB' is not configured in wrangler.jsonc");
   }
   await db.prepare(BOOTSTRAP_SQL).run();
+  // Migrate tables created before the school column existed. SQLite has no
+  // ADD COLUMN IF NOT EXISTS, so swallow the duplicate-column error.
+  try {
+    await db.prepare("ALTER TABLE scores ADD COLUMN school TEXT").run();
+  } catch {
+    // column already present
+  }
   return db;
 }
 
@@ -64,6 +73,7 @@ function toEntry(row: ScoreRow): LeaderboardEntry & { id: number } {
   return {
     id: row.id,
     name: row.name,
+    ...(row.school === null ? {} : { school: row.school }),
     score: row.score,
     totalSeconds: row.total_seconds,
     date: row.created_at,
@@ -76,7 +86,7 @@ function toEntry(row: ScoreRow): LeaderboardEntry & { id: number } {
 async function topEntries(db: D1Database): Promise<LeaderboardEntry[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, score, total_seconds, difficulty, op, topic, created_at
+      `SELECT id, name, school, score, total_seconds, difficulty, op, topic, created_at
        FROM scores
        ORDER BY score DESC, total_seconds ASC, created_at DESC
        LIMIT 50`,
@@ -120,11 +130,12 @@ export async function POST(request: Request) {
     // INSERT returns no rows in D1 — the new id arrives via meta.last_row_id.
     const result = await db
       .prepare(
-        `INSERT INTO scores (name, score, total_seconds, difficulty, op, topic, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO scores (name, school, score, total_seconds, difficulty, op, topic, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         entry.name,
+        entry.school ?? null,
         entry.score,
         entry.totalSeconds,
         entry.difficulty ?? null,

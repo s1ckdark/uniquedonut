@@ -65,6 +65,7 @@ export default function QuizPage() {
   const [runSeconds, setRunSeconds] = useState(0);
   const [runDifficulty, setRunDifficulty] = useState(31);
   const [name, setName] = useState("");
+  const [school, setSchool] = useState("");
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [boardError, setBoardError] = useState<string | null>(null);
@@ -72,6 +73,12 @@ export default function QuizPage() {
 
   const startRef = useRef<number>(0);
   const gameStartRef = useRef<number>(0);
+
+  // Remember the school between games (per-device convenience only).
+  useEffect(() => {
+    const saved = window.localStorage.getItem("gino-quiz-school");
+    if (saved) setSchool(saved);
+  }, []);
 
   const config: QuizConfig = {
     op,
@@ -178,17 +185,20 @@ export default function QuizPage() {
   async function saveScore() {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const schoolTrimmed = school.trim();
     try {
       setBoardLoading(true);
       setBoardError(null);
       const { id, entries } = await submitScore({
         name: trimmed,
+        ...(schoolTrimmed ? { school: schoolTrimmed } : {}),
         score: total,
         totalSeconds: runSeconds,
         date: new Date().toISOString(),
         difficulty: runDifficulty,
         ...(topicSlug ? { topic: topicSlug } : { op }),
       });
+      window.localStorage.setItem("gino-quiz-school", schoolTrimmed);
       setBoard(entries);
       setSavedId(id);
       setPhase("board");
@@ -693,22 +703,31 @@ export default function QuizPage() {
               <p className="text-sm font-bold text-white/80">
                 🏆 리더보드에 남길까요?
               </p>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 space-y-2">
                 <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value.slice(0, 12))}
-                  placeholder="이름"
-                  className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#6BCB77]"
-                  aria-label="리더보드 이름"
+                  value={school}
+                  onChange={(e) => setSchool(e.target.value.slice(0, 16))}
+                  placeholder="초등학교 (예: 위니초)"
+                  className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#6BCB77]"
+                  aria-label="초등학교 이름"
                 />
-                <button
-                  type="button"
-                  onClick={saveScore}
-                  disabled={!name.trim() || boardLoading}
-                  className="rounded-xl bg-[#6BCB77] px-4 py-2 text-sm font-black text-black transition hover:opacity-90 disabled:opacity-30 cursor-pointer"
-                >
-                  {boardLoading ? "저장 중..." : "저장"}
-                </button>
+                <div className="flex gap-2">
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value.slice(0, 12))}
+                    placeholder="이름"
+                    className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#6BCB77]"
+                    aria-label="리더보드 이름"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveScore}
+                    disabled={!name.trim() || boardLoading}
+                    className="rounded-xl bg-[#6BCB77] px-4 py-2 text-sm font-black text-black transition hover:opacity-90 disabled:opacity-30 cursor-pointer"
+                  >
+                    {boardLoading ? "저장 중..." : "저장"}
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -789,6 +808,11 @@ export default function QuizPage() {
                           <td className="py-2">{i + 1}</td>
                           <td className="py-2">
                             {prefix} {e.name}
+                            {e.school && (
+                              <span className="ml-1.5 text-xs font-bold text-white/45">
+                                {e.school}
+                              </span>
+                            )}
                           </td>
                           <td className="py-2">{fmtPts(e.score)}</td>
                           <td className="py-2 font-mono">
