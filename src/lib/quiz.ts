@@ -183,8 +183,10 @@ function buildTablesQuiz(config: QuizConfig): QuizQuestion[] {
 }
 
 /** Questions for add/sub: unique random operand pairs (repeats allowed as
- *  a fallback for very long games). */
+ *  a fallback for very long games). Callers only reach here for add/sub
+ *  (buildQuiz routes mul/div to buildTablesQuiz). */
 function buildRangeQuiz(config: QuizConfig): QuizQuestion[] {
+  const op: "add" | "sub" = config.op === "sub" ? "sub" : "add";
   const questions: QuizQuestion[] = [];
   const seen = new Set<string>();
   const rand = () => 1 + Math.floor(Math.random() * config.rangeMax);
@@ -192,16 +194,16 @@ function buildRangeQuiz(config: QuizConfig): QuizQuestion[] {
   while (questions.length < config.questionCount && guard-- > 0) {
     const a = rand();
     const b = rand();
-    const key = config.op === "sub" ? [Math.max(a, b), Math.min(a, b)].join(",") : `${a},${b}`;
+    const key = op === "sub" ? [Math.max(a, b), Math.min(a, b)].join(",") : `${a},${b}`;
     if (seen.has(key)) continue;
     seen.add(key);
     questions.push(
-      rangeQuestion(config.op, config.rangeMax, config.optionCount, Math.random, a, b),
+      rangeQuestion(op, config.rangeMax, config.optionCount, Math.random, a, b),
     );
   }
   while (questions.length < config.questionCount) {
     questions.push(
-      rangeQuestion(config.op, config.rangeMax, config.optionCount, Math.random, rand(), rand()),
+      rangeQuestion(op, config.rangeMax, config.optionCount, Math.random, rand(), rand()),
     );
   }
   return questions;
@@ -261,9 +263,10 @@ export function buildDailyMathQuiz(
 
 /** A game's questions for any operation. */
 export function buildQuiz(config: QuizConfig): QuizQuestion[] {
-  return config.op === "mul" || config.op === "div"
-    ? buildTablesQuiz(config)
-    : buildRangeQuiz(config);
+  if (config.op === "mul" || config.op === "div") {
+    return buildTablesQuiz(config);
+  }
+  return buildRangeQuiz(config);
 }
 
 /** The single shape the play UI consumes: math and content-topic questions
