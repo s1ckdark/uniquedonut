@@ -1,15 +1,28 @@
-// Quiz Arena: times-table quiz generation and speed scoring.
+// Quiz Arena: configurable times-table quiz generation and speed scoring.
 // Pure module — no DOM, no React.
 
-export interface QuizQuestion {
-  a: number; // the times table (e.g. 2)
-  b: number; // 1..10
-  answer: number;
-  options: number[]; // 4 unique values, includes the answer
+export interface QuizConfig {
+  tables: number[]; // which times tables, e.g. [2] or [2, 3, 11]
+  optionCount: number; // 2..5
+  timeoutMs: number; // per-question timeout
+  questionCount: number; // total questions in a game
 }
 
-export const TIMEOUT_MS = 5000;
-export const MAX_POINTS_PER_QUESTION = 5;
+export const MAX_TOTAL_POINTS = 50;
+
+export const DEFAULT_CONFIG: QuizConfig = {
+  tables: [2],
+  optionCount: 3,
+  timeoutMs: 5000,
+  questionCount: 5,
+};
+
+export interface QuizQuestion {
+  a: number; // the times table
+  b: number; // 1..9
+  answer: number;
+  options: number[]; // unique values, includes the answer
+}
 
 /** Fisher–Yates shuffle; returns a new array, input untouched. */
 export function shuffle<T>(arr: T[]): T[] {
@@ -21,24 +34,43 @@ export function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-function makeQuestion(a: number, b: number): QuizQuestion {
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function makeQuestion(a: number, b: number, optionCount: number): QuizQuestion {
   const answer = a * b;
-  const candidates = [answer - 3, answer - 2, answer - 1, answer + 1, answer + 2, answer + 3]
-    .filter((v) => v > 0 && v !== answer);
-  const distractors = shuffle(candidates).slice(0, 3);
+  // Near misses plus the neighboring tables' answers (classic traps).
+  const pool = [
+    answer - 4, answer - 3, answer - 2, answer - 1,
+    answer + 1, answer + 2, answer + 3, answer + 4,
+    (a - 1) * b, (a + 1) * b,
+  ].filter((v) => v > 0 && v !== answer);
+  const distractors = shuffle([...new Set(pool)]).slice(0, optionCount - 1);
   return { a, b, answer, options: shuffle([answer, ...distractors]) };
 }
 
-/** A full quiz for one times table: table×1 … table×10, order shuffled. */
-export function buildTimesTableQuiz(table: number): QuizQuestion[] {
-  const questions: QuizQuestion[] = [];
-  for (let b = 1; b <= 10; b++) questions.push(makeQuestion(table, b));
-  return shuffle(questions);
+/** A game's questions: sampled from tables×1..9, no repeats until the pool
+ *  runs out; longer games allow repeats. */
+export function buildQuiz(config: QuizConfig): QuizQuestion[] {
+  const combos: Array<[number, number]> = [];
+  for (const t of config.tables) {
+    for (let b = 1; b <= 9; b++) combos.push([t, b]);
+  }
+  let pairs = shuffle(combos);
+  while (pairs.length < config.questionCount) {
+    pairs = pairs.concat(shuffle(combos));
+  }
+  return pairs
+    .slice(0, config.questionCount)
+    .map(([a, b]) => makeQuestion(a, b, config.optionCount));
 }
 
-/** Speed points for an answer after `ms`: 5 under 1s, minus 1 per second,
- *  0 at the 5s timeout. */
-export function pointsForElapsed(ms: number): number {
-  if (ms >= TIMEOUT_MS) return 0;
-  return MAX_POINTS_PER_QUESTION - Math.floor(ms / 1000);
+/** Speed points for an answer after `ms`: full per-question value under 1s,
+ *  minus one bucket per second, 0 at the timeout. Per-question max is
+ *  MAX_TOTAL_POINTS / questionCount, so a perfect game is always 50. */
+export function pointsForElapsed(ms: number, config: QuizConfig): number {
+  if (ms >= config.timeoutMs) return 0;
+  const perQuestion = MAX_TOTAL_POINTS / config.questionCount;
+  const buckets = Math.max(1, Math.ceil(config.timeoutMs / 1000));
+  const elapsedSec = Math.floor(ms / 1000);
+  return round1((perQuestion * (buckets - elapsedSec)) / buckets);
 }
