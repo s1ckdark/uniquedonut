@@ -360,3 +360,9 @@ export const contentTopics: ContentTopic[] = [
 export function findTopic(slug: string): ContentTopic | undefined {
   return contentTopics.find((t) => t.slug === slug);
 }
+
+/** Emoji for a leaderboard topic slug — story topics plus the daily-math set. */
+export function topicEmoji(slug: string): string {
+  if (slug === "daily-math") return "🧮";
+  return findTopic(slug)?.emoji ?? "📚";
+}
