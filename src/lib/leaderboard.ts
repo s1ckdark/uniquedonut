@@ -26,7 +26,7 @@ export function sanitizeEntry(raw: unknown): LeaderboardEntry | null {
   >;
   const trimmed = typeof name === "string" ? name.trim() : "";
   if (trimmed.length < 1 || trimmed.length > 12) return null;
-  if (typeof score !== "number" || score < 0 || score > 50) return null;
+  if (typeof score !== "number" || score < 0 || score > 100) return null;
   if (
     typeof totalSeconds !== "number" ||
     totalSeconds < 0 ||

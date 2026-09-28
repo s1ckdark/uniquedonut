@@ -52,25 +52,25 @@ test("buildQuiz: repeats allowed when questions exceed the pool", () => {
   assert.equal(buildQuiz(long).length, 20);
 });
 
-test("pointsForElapsed: default buckets 10/8/6/4/2, zero at timeout", () => {
-  assert.equal(pointsForElapsed(0, DEFAULT_CONFIG), 10);
-  assert.equal(pointsForElapsed(999, DEFAULT_CONFIG), 10);
-  assert.equal(pointsForElapsed(1000, DEFAULT_CONFIG), 8);
-  assert.equal(pointsForElapsed(2500, DEFAULT_CONFIG), 6);
-  assert.equal(pointsForElapsed(4999, DEFAULT_CONFIG), 2);
+test("pointsForElapsed: default buckets 20/16/12/8/4, zero at timeout", () => {
+  assert.equal(pointsForElapsed(0, DEFAULT_CONFIG), 20);
+  assert.equal(pointsForElapsed(999, DEFAULT_CONFIG), 20);
+  assert.equal(pointsForElapsed(1000, DEFAULT_CONFIG), 16);
+  assert.equal(pointsForElapsed(2500, DEFAULT_CONFIG), 12);
+  assert.equal(pointsForElapsed(4999, DEFAULT_CONFIG), 4);
   assert.equal(pointsForElapsed(5000, DEFAULT_CONFIG), 0);
   assert.equal(pointsForElapsed(7000, DEFAULT_CONFIG), 0);
 });
 
 test("pointsForElapsed: scales with question count and timeout", () => {
-  // 4 questions → 12.5 per question
+  // 4 questions → 25 per question
   const four: QuizConfig = { ...DEFAULT_CONFIG, questionCount: 4 };
-  assert.equal(pointsForElapsed(0, four), 12.5);
-  // 3-second timeout → 3 buckets of a 5-question game (10 pts each)
+  assert.equal(pointsForElapsed(0, four), 25);
+  // 3-second timeout → 3 buckets of a 5-question game (20 pts each)
   const fast: QuizConfig = { ...DEFAULT_CONFIG, timeoutMs: 3000 };
-  assert.equal(pointsForElapsed(0, fast), 10);
-  assert.equal(pointsForElapsed(1000, fast), 6.7);
-  assert.equal(pointsForElapsed(2000, fast), 3.3);
+  assert.equal(pointsForElapsed(0, fast), 20);
+  assert.equal(pointsForElapsed(1000, fast), 13.3);
+  assert.equal(pointsForElapsed(2000, fast), 6.7);
   assert.equal(pointsForElapsed(3000, fast), 0);
 });
 

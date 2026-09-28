@@ -20,7 +20,7 @@ test("sanitizeEntry: accepts a trimmed valid entry", () => {
 test("sanitizeEntry: rejects bad names, scores, and times", () => {
   assert.equal(sanitizeEntry(entry({ name: "" })), null);
   assert.equal(sanitizeEntry(entry({ name: "아".repeat(13) })), null);
-  assert.equal(sanitizeEntry(entry({ score: 51 })), null);
+  assert.equal(sanitizeEntry(entry({ score: 101 })), null);
   assert.equal(sanitizeEntry(entry({ score: -1 })), null);
   assert.equal(sanitizeEntry(entry({ totalSeconds: -2 })), null);
   assert.equal(sanitizeEntry(entry({ totalSeconds: 4000 })), null);

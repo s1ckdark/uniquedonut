@@ -15,7 +15,7 @@ export interface QuizConfig {
   topic?: string; // content-topic slug — when set, math fields are ignored
 }
 
-export const MAX_TOTAL_POINTS = 50;
+export const MAX_TOTAL_POINTS = 100;
 export const RANGE_CHOICES = [10, 20, 50, 100, 1000];
 
 export const DEFAULT_CONFIG: QuizConfig = {

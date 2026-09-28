@@ -189,11 +189,11 @@ export default function QuizPage() {
   }
 
   const medal =
-    total === 50
+    total === 100
       ? { emoji: "🏆", msg: "완벽해요! 번개 속도!" }
-      : total >= 40
+      : total >= 80
         ? { emoji: "🥇", msg: "대단해요! 거의 완벽!" }
-        : total >= 25
+        : total >= 50
           ? { emoji: "🥈", msg: "잘했어요! 조금만 더 빠르게!" }
           : { emoji: "🥉", msg: "괜찮아요! 연습하면 빨라져요!" };
 
@@ -495,7 +495,7 @@ export default function QuizPage() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-white/40">
-                만점은 언제나 50점! 빠르게 맞힐수록 점수가 커요
+                만점은 언제나 100점! 빠르게 맞힐수록 점수가 커요
               </p>
             </div>
           </div>
@@ -597,7 +597,7 @@ export default function QuizPage() {
                 color: "#FFD93D",
               }}
             >
-              {fmtPts(total)} / 50점
+              {fmtPts(total)} / 100점
             </p>
             <p className="mt-1 font-mono text-sm text-white/50">
               ⏱ 총 {formatTime(runSeconds)}
