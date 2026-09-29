@@ -16,10 +16,10 @@ function shuffle<T>(arr: T[]): T[] {
   return copy;
 }
 
-/** Build a shuffled n×n deck. Odd grids get one self-matching bonus card
- *  so every card can be cleared. */
-export function buildMemoryDeck(n: number): MemoryCard[] {
-  const total = n * n;
+/** Build a shuffled rows×cols deck. Odd totals get one self-matching bonus
+ *  card so every card can be cleared. */
+export function buildMemoryDeck(rows: number, cols: number): MemoryCard[] {
+  const total = rows * cols;
   const odd = total % 2 === 1;
   const pairs = odd ? (total - 1) / 2 : total / 2;
 
@@ -56,8 +56,12 @@ export function computeMemoryScore(input: MemoryScoreInput): number {
 
 /** Difficulty 0–100 using the shared tier labels: grid area plus up to 24
  *  points for tighter time limits. */
-export function memoryDifficulty(n: number, limitSec: number): number {
-  const gridPts = n * n; // 9..36
+export function memoryDifficulty(
+  rows: number,
+  cols: number,
+  limitSec: number,
+): number {
+  const gridPts = rows * cols; // 4..36
   const timePts = clamp(Math.round((240 - limitSec) / 8), 0, 24);
   return Math.round(clamp(gridPts + timePts, 0, 100));
 }

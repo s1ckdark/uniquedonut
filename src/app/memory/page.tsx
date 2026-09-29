@@ -11,7 +11,7 @@ import {
 import { difficultyLabel } from "@/lib/quiz";
 import { formatTime, submitScore } from "@/lib/leaderboard";
 
-const SIZE_CHOICES = [3, 4, 5, 6];
+const SIZE_CHOICES = [2, 3, 4, 5, 6];
 const FLIP_BACK_MS = 900;
 
 type Phase = "setup" | "play" | "results" | "saved";
@@ -24,7 +24,8 @@ interface CardState extends MemoryCard {
 
 export default function MemoryPage() {
   // settings
-  const [gridN, setGridN] = useState(3);
+  const [cols, setCols] = useState(3);
+  const [rows, setRows] = useState(3);
   const [limitSec, setLimitSec] = useState(60);
 
   // game
@@ -54,10 +55,13 @@ export default function MemoryPage() {
     if (saved) setSchool(saved);
   }, []);
 
-  const difficulty = memoryDifficulty(gridN, limitSec);
+  const difficulty = memoryDifficulty(rows, cols, limitSec);
+  const total = rows * cols;
 
   function start() {
-    setDeck(buildMemoryDeck(gridN).map((c) => ({ ...c, matched: false })));
+    setDeck(
+      buildMemoryDeck(rows, cols).map((c) => ({ ...c, matched: false })),
+    );
     setFlippedIdx([]);
     setMoves(0);
     setTimeLeftMs(limitMs);
@@ -245,29 +249,48 @@ export default function MemoryPage() {
           <div className="space-y-5">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <p className="mb-3 text-sm font-bold text-white/70">
-                카드 판 크기
+                가로 칸 수
               </p>
               <div className="flex gap-2">
                 {SIZE_CHOICES.map((n) => (
                   <button
                     key={n}
                     type="button"
-                    onClick={() => setGridN(n)}
+                    onClick={() => setCols(n)}
                     className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
-                      gridN === n
+                      cols === n
                         ? "bg-[#c77dff] text-black"
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
                   >
-                    {n}×{n}
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="mb-3 mt-4 text-sm font-bold text-white/70">
+                세로 줄 수
+              </p>
+              <div className="flex gap-2">
+                {SIZE_CHOICES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setRows(n)}
+                    className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                      rows === n
+                        ? "bg-[#c77dff] text-black"
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
+                    }`}
+                  >
+                    {n}
                   </button>
                 ))}
               </div>
               <p className="mt-2 text-xs text-white/50">
-                {gridN}×{gridN} = {gridN * gridN}장 ·{" "}
-                {gridN % 2 === 1
-                  ? `${(gridN * gridN - 1) / 2}쌍 + 🍩 보너스 1장`
-                  : `${(gridN * gridN) / 2}쌍`}
+                {rows}×{cols} = {total}장 ·{" "}
+                {total % 2 === 1
+                  ? `${(total - 1) / 2}쌍 + 🍩 보너스 1장`
+                  : `${total / 2}쌍`}
               </p>
             </div>
 
@@ -328,17 +351,16 @@ export default function MemoryPage() {
             <div
               className="memory-scene mx-auto grid gap-2"
               style={{
-                gridTemplateColumns: `repeat(${gridN}, minmax(0, 1fr))`,
-                maxWidth: `${gridN * 88}px`,
+                gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                maxWidth: `${cols * 88}px`,
               }}
             >
               {deck.map((card, i) => {
-                const isFlipped =
-                  card.matched || flippedIdx.includes(i);
+                const isFlipped = card.matched || flippedIdx.includes(i);
                 return (
                   <div key={card.id} className="aspect-square">
                     <div
-                      className={`memory-card ${isFlipped ? "flipped" : ""}`}
+                      className={`memory-card ${isFlipped ? "flipped" : ""} ${card.matched ? "matched" : ""}`}
                       onClick={() => flipCard(i)}
                       role="button"
                       aria-label={card.matched ? "찾은 카드" : "카드"}
@@ -347,7 +369,8 @@ export default function MemoryPage() {
                       <div
                         className="memory-face border-2 text-2xl"
                         style={{
-                          background: "linear-gradient(135deg, #3d2c63, #241a3f)",
+                          background:
+                            "linear-gradient(135deg, #3d2c63, #241a3f)",
                           borderColor: card.matched
                             ? "#6BCB77"
                             : "rgba(199,125,255,0.4)",
@@ -358,20 +381,26 @@ export default function MemoryPage() {
                       >
                         🍩
                       </div>
-                      {/* number side */}
+                      {/* number side — matched cards stay up with a check */}
                       <div
                         className="memory-face back border-2"
                         style={{
                           background: card.matched
-                            ? "rgba(107,203,119,0.25)"
+                            ? "rgba(107,203,119,0.3)"
                             : "#f5efff",
                           borderColor: card.matched ? "#6BCB77" : "#c77dff",
                           color: "#1A0A2E",
                           fontFamily: "var(--font-space-grotesk)",
-                          fontSize: gridN >= 6 ? "1.1rem" : "1.5rem",
+                          fontSize: cols >= 6 || rows >= 6 ? "1.05rem" : "1.4rem",
+                          opacity: card.matched ? 0.92 : 1,
                         }}
                       >
                         {card.isBonus ? "🍩!" : card.value}
+                        {card.matched && (
+                          <span className="memory-check" aria-hidden>
+                            ✅
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
