@@ -98,4 +98,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🧮",
     color: "#FF8C42",
   },
+  {
+    slug: "memory",
+    name: "기억력 챌린지",
+    description: "숫자카드 짝 맞추기",
+    href: "/memory",
+    emoji: "🧠",
+    color: "#c77dff",
+  },
 ];
