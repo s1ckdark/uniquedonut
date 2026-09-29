@@ -4,7 +4,26 @@ import {
   buildMemoryDeck,
   computeMemoryScore,
   memoryDifficulty,
+  THEME_FACES,
+  cardFace,
+  type MemoryTheme,
 } from "./memory";
+
+test("themes: emoji lists cover 18 pairs (6×6) with unique faces", () => {
+  for (const theme of ["animals", "fruits", "vehicles"] as MemoryTheme[]) {
+    const faces = THEME_FACES[theme];
+    assert.ok(faces.length >= 18, `${theme} needs ≥18 faces`);
+    assert.equal(new Set(faces).size, faces.length, `${theme} faces unique`);
+  }
+});
+
+test("cardFace: numbers render digits, themes map values to faces", () => {
+  assert.equal(cardFace("numbers", 7), "7");
+  assert.equal(cardFace("animals", 1), THEME_FACES.animals[0]);
+  assert.equal(cardFace("fruits", 18), THEME_FACES.fruits[17]);
+  // out-of-range values fall back to digits
+  assert.equal(cardFace("vehicles", 99), "99");
+});
 
 test("buildMemoryDeck: even total — pairs only, no bonus (4×4, 5×4)", () => {
   for (let run = 0; run < 10; run++) {

@@ -6,7 +6,10 @@ import {
   buildMemoryDeck,
   computeMemoryScore,
   memoryDifficulty,
+  cardFace,
+  THEME_LABELS,
   type MemoryCard,
+  type MemoryTheme,
 } from "@/lib/memory";
 import { difficultyLabel } from "@/lib/quiz";
 import { formatTime, submitScore } from "@/lib/leaderboard";
@@ -26,6 +29,7 @@ export default function MemoryPage() {
   // settings
   const [cols, setCols] = useState(3);
   const [rows, setRows] = useState(3);
+  const [theme, setTheme] = useState<MemoryTheme>("animals");
   const [limitSec, setLimitSec] = useState(60);
 
   // game
@@ -248,6 +252,26 @@ export default function MemoryPage() {
         {phase === "setup" && (
           <div className="space-y-5">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="mb-3 text-sm font-bold text-white/70">카드 그림</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(THEME_LABELS) as MemoryTheme[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTheme(t)}
+                    className={`flex-1 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold transition cursor-pointer ${
+                      theme === t
+                        ? "bg-[#c77dff] text-black"
+                        : "bg-white/10 text-white/70 hover:bg-white/20"
+                    }`}
+                  >
+                    {THEME_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <p className="mb-3 text-sm font-bold text-white/70">
                 가로 칸 수
               </p>
@@ -381,7 +405,7 @@ export default function MemoryPage() {
                       >
                         🍩
                       </div>
-                      {/* number side — matched cards stay up with a check */}
+                      {/* face side — themed; matched cards stay up with a check */}
                       <div
                         className="memory-face back border-2"
                         style={{
@@ -390,12 +414,22 @@ export default function MemoryPage() {
                             : "#f5efff",
                           borderColor: card.matched ? "#6BCB77" : "#c77dff",
                           color: "#1A0A2E",
-                          fontFamily: "var(--font-space-grotesk)",
-                          fontSize: cols >= 6 || rows >= 6 ? "1.05rem" : "1.4rem",
+                          fontFamily:
+                            theme === "numbers"
+                              ? "var(--font-space-grotesk)"
+                              : undefined,
+                          fontSize:
+                            theme === "numbers"
+                              ? cols >= 6 || rows >= 6
+                                ? "1.05rem"
+                                : "1.4rem"
+                              : cols >= 6 || rows >= 6
+                                ? "1.3rem"
+                                : "1.7rem",
                           opacity: card.matched ? 0.92 : 1,
                         }}
                       >
-                        {card.isBonus ? "🍩!" : card.value}
+                        {card.isBonus ? "🍩!" : cardFace(theme, card.value)}
                         {card.matched && (
                           <span className="memory-check" aria-hidden>
                             ✅

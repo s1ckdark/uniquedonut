@@ -7,6 +7,41 @@ export interface MemoryCard {
   isBonus: boolean; // 🍩 card that matches itself instantly (odd grids)
 }
 
+// ---------- card themes ----------
+
+export type MemoryTheme = "numbers" | "animals" | "fruits" | "vehicles";
+
+/** Distinct faces per theme — every list holds ≥18 entries so even a 6×6
+ *  grid (18 pairs) can draw unique faces. */
+export const THEME_FACES: Record<MemoryTheme, string[]> = {
+  numbers: [],
+  animals: [
+    "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨",
+    "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🐔", "🐧", "🦉",
+  ],
+  fruits: [
+    "🍎", "🍌", "🍇", "🍓", "🍑", "🍒", "🥝", "🍍", "🥭",
+    "🍉", "🍋", "🍐", "🫐", "🍊", "🥑", "🥥", "🍅", "🥕",
+  ],
+  vehicles: [
+    "🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒",
+    "🚐", "🛻", "🚚", "🚜", "🚲", "🛵", "🚂", "✈️", "🚁",
+  ],
+};
+
+export const THEME_LABELS: Record<MemoryTheme, string> = {
+  numbers: "🔢 숫자",
+  animals: "🐾 동물",
+  fruits: "🍎 과일",
+  vehicles: "🚗 탈것",
+};
+
+/** The face shown for a pair value under a theme (numbers render digits). */
+export function cardFace(theme: MemoryTheme, value: number): string {
+  if (theme === "numbers") return String(value);
+  return THEME_FACES[theme][value - 1] ?? String(value);
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
