@@ -9,7 +9,12 @@ export interface MemoryCard {
 
 // ---------- card themes ----------
 
-export type MemoryTheme = "numbers" | "animals" | "fruits" | "vehicles";
+export type MemoryTheme =
+  | "numbers"
+  | "animals"
+  | "fruits"
+  | "vehicles"
+  | "shapes";
 
 /** Distinct faces per theme — every list holds ≥18 entries so even a 6×6
  *  grid (18 pairs) can draw unique faces. */
@@ -27,6 +32,10 @@ export const THEME_FACES: Record<MemoryTheme, string[]> = {
     "🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒",
     "🚐", "🛻", "🚚", "🚜", "🚲", "🛵", "🚂", "✈️", "🚁",
   ],
+  shapes: [
+    "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫", "⚪",
+    "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛", "⬜", "🔷",
+  ],
 };
 
 export const THEME_LABELS: Record<MemoryTheme, string> = {
@@ -34,6 +43,7 @@ export const THEME_LABELS: Record<MemoryTheme, string> = {
   animals: "🐾 동물",
   fruits: "🍎 과일",
   vehicles: "🚗 탈것",
+  shapes: "🔷 도형",
 };
 
 /** The face shown for a pair value under a theme (numbers render digits). */

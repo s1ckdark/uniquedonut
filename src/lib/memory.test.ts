@@ -10,7 +10,12 @@ import {
 } from "./memory";
 
 test("themes: emoji lists cover 18 pairs (6×6) with unique faces", () => {
-  for (const theme of ["animals", "fruits", "vehicles"] as MemoryTheme[]) {
+  for (const theme of [
+    "animals",
+    "fruits",
+    "vehicles",
+    "shapes",
+  ] as MemoryTheme[]) {
     const faces = THEME_FACES[theme];
     assert.ok(faces.length >= 18, `${theme} needs ≥18 faces`);
     assert.equal(new Set(faces).size, faces.length, `${theme} faces unique`);
