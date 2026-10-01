@@ -252,6 +252,13 @@ export default function ArithmeticPage() {
           >
             매일매일 산수 놀이터 🧮
           </p>
+          <p
+            className="mt-2 inline-block rounded-full px-4 py-1 text-sm font-black"
+            style={{ background: "#FF8C4220", color: "#FF8C42" }}
+          >
+            {grade}학년 · 다항 {multiTermPct}% · 난이도 {difficulty}{" "}
+            {difficultyLabel(difficulty)}
+          </p>
         </header>
 
         {/* ---------- setup ---------- */}
