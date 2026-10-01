@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   buildDailyMathQuiz,
-  difficultyScore,
+  dailyDifficulty,
   difficultyLabel,
   pointsForElapsed,
-  type DailyLevel,
+  GRADE_PRESETS,
+  type Grade,
   type QuizQuestion,
 } from "@/lib/quiz";
 import { formatTime, submitScore } from "@/lib/leaderboard";
@@ -15,12 +16,7 @@ import { formatTime, submitScore } from "@/lib/leaderboard";
 const FEEDBACK_MS = 1100;
 const TIMEOUT_MS = 10000;
 const QUESTION_COUNT = 10;
-
-const LEVELS: Record<DailyLevel, { label: string; rangeMax: number }> = {
-  easy: { label: "🌱 쉬움", rangeMax: 10 },
-  normal: { label: "🔥 보통", rangeMax: 50 },
-  hard: { label: "⚡ 도전", rangeMax: 100 },
-};
+const GRADES: Grade[] = [1, 2, 3, 4, 5, 6];
 
 const STREAK_KEY = "gino-daily-math";
 
@@ -58,7 +54,8 @@ function computeStreak(dates: string[]): number {
 }
 
 export default function ArithmeticPage() {
-  const [level, setLevel] = useState<DailyLevel>("normal");
+  const [grade, setGrade] = useState<Grade>(2);
+  const [multiTermPct, setMultiTermPct] = useState(0);
   const [phase, setPhase] = useState<Phase>("setup");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
@@ -93,18 +90,12 @@ export default function ArithmeticPage() {
   const locked = picked !== null || timedOut;
   const streak = computeStreak(streakDates);
 
-  const difficulty = difficultyScore({
-    op: "add",
-    mode: "attack",
-    tables: [2],
-    rangeMax: LEVELS[level].rangeMax,
-    optionCount: 4,
-    timeoutMs: TIMEOUT_MS,
-    questionCount: QUESTION_COUNT,
-  });
+  const difficulty = dailyDifficulty(grade, multiTermPct);
 
   function start() {
-    setQuestions(buildDailyMathQuiz(todayStr(), level));
+    setQuestions(
+      buildDailyMathQuiz(todayStr(), grade, QUESTION_COUNT, 4, multiTermPct),
+    );
     setQIndex(0);
     setPicked(null);
     setTimedOut(false);
@@ -171,7 +162,7 @@ export default function ArithmeticPage() {
           op: "add",
           mode: "attack",
           tables: [2],
-          rangeMax: LEVELS[level].rangeMax,
+          rangeMax: GRADE_PRESETS[grade].opsRange,
           optionCount: 4,
           timeoutMs: TIMEOUT_MS,
           questionCount: QUESTION_COUNT,
@@ -282,38 +273,58 @@ export default function ArithmeticPage() {
               </p>
             </div>
 
-            {/* level */}
+            {/* grade */}
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-sm font-bold text-white/70">난이도</p>
+              <p className="mb-3 text-sm font-bold text-white/70">학년 (교과 과정)</p>
               <div className="flex gap-2">
-                {(Object.keys(LEVELS) as DailyLevel[]).map((l) => (
+                {GRADES.map((g) => (
                   <button
-                    key={l}
+                    key={g}
                     type="button"
-                    onClick={() => setLevel(l)}
+                    onClick={() => setGrade(g)}
                     className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
-                      level === l
+                      grade === g
                         ? "bg-[#FF8C42] text-black"
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
                   >
-                    {LEVELS[l].label}
+                    {g}학년
                   </button>
                 ))}
               </div>
               <p className="mt-2 text-xs text-white/50">
-                {level === "easy"
-                  ? "숫자 10까지, 구구단 2~5단까지"
-                  : level === "normal"
-                    ? "숫자 50까지, 구구단 2~9단까지"
-                    : "숫자 100까지, 구구단 2~12단까지!"}
+                {GRADE_PRESETS[grade].blurb}
+              </p>
+            </div>
+
+            {/* multi-term ratio */}
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <p className="mb-3 text-sm font-bold text-white/70">
+                다항 연산 비율 · {multiTermPct}%{" "}
+                <span className="font-normal text-white/50">
+                  ({Math.round((QUESTION_COUNT * multiTermPct) / 100)}/10문제가
+                  “a ± b ± c” 3항)
+                </span>
+              </p>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={10}
+                value={multiTermPct}
+                onChange={(e) => setMultiTermPct(Number(e.target.value))}
+                className="w-full accent-[#FF8C42] cursor-pointer"
+                aria-label="다항 연산 비율"
+              />
+              <p className="mt-1 text-xs text-white/50">
+                0%면 모두 두 항(a ± b), 50%면 절반이 세 항(a ± b ± c)으로 나와요
               </p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
               <p>
-                📅 <b className="text-white">{today}</b> 오늘의 문제 — 더하기,
-                빼기, 곱하기, 나누기가 섞인 10문제
+                📅 <b className="text-white">{today}</b> 오늘의 문제 —{" "}
+                {grade}학년 과정의 10문제
               </p>
               <p className="mt-1">
                 ⏱ 문제마다 10초 · 만점 100점 · 같은 날엔 모두 같은 문제!
@@ -364,21 +375,31 @@ export default function ArithmeticPage() {
             </div>
 
             <p
-              className="mt-8 text-center text-6xl font-black"
+              className={`mt-8 text-center font-black ${
+                question.label ? "text-4xl md:text-5xl" : "text-6xl"
+              }`}
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {question.a}{" "}
-              <span className="text-[#FFD93D]">
-                {question.answer === question.a + question.b
-                  ? "+"
-                  : question.answer === question.a - question.b
-                    ? "−"
-                    : question.a % question.b === 0 &&
-                        question.answer === question.a / question.b
-                      ? "÷"
-                      : "×"}
-              </span>{" "}
-              {question.b} = ?
+              {question.label ? (
+                question.label.replace("= ?", "=") + (
+                  <span className="text-[#FFD93D]">?</span>
+                )
+              ) : (
+                <>
+                  {question.a}{" "}
+                  <span className="text-[#FFD93D]">
+                    {question.answer === question.a + question.b
+                      ? "+"
+                      : question.answer === question.a - question.b
+                        ? "−"
+                        : question.a % question.b === 0 &&
+                            question.answer === question.a / question.b
+                          ? "÷"
+                          : "×"}
+                  </span>{" "}
+                  {question.b} = ?
+                </>
+              )}
             </p>
 
             <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -433,7 +454,7 @@ export default function ArithmeticPage() {
               {fmtPts(total)} / 100점
             </p>
             <p className="mt-1 font-mono text-sm text-white/50">
-              ⏱ 총 {formatTime(runSeconds)} · {LEVELS[level].label} · 난이도{" "}
+              ⏱ 총 {formatTime(runSeconds)} · {grade}학년 · 난이도{" "}
               {difficulty}
             </p>
             <p

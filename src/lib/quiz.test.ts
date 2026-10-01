@@ -4,6 +4,7 @@ import {
   DEFAULT_CONFIG,
   buildQuiz,
   buildDailyMathQuiz,
+  dailyDifficulty,
   buildPlayQuestions,
   pointsForElapsed,
   pointsForCorrect,
@@ -260,46 +261,73 @@ test("difficultyScore: topic = base + timeout + count, no option part", () => {
 
 // ---------- daily math set (오늘의 산수) ----------
 
-test("buildDailyMathQuiz: deterministic for the same date and level", () => {
-  const a = buildDailyMathQuiz("2026-09-29", "normal");
-  const b = buildDailyMathQuiz("2026-09-29", "normal");
+test("buildDailyMathQuiz: deterministic for the same date, grade, and ratio", () => {
+  const a = buildDailyMathQuiz("2026-09-29", 3, 10, 4, 30);
+  const b = buildDailyMathQuiz("2026-09-29", 3, 10, 4, 30);
   assert.deepEqual(a, b);
   assert.equal(a.length, 10);
 });
 
-test("buildDailyMathQuiz: different dates or levels give different sets", () => {
-  const today = buildDailyMathQuiz("2026-09-29", "normal");
-  const tomorrow = buildDailyMathQuiz("2026-09-30", "normal");
-  const hard = buildDailyMathQuiz("2026-09-29", "hard");
-  assert.notDeepEqual(today, tomorrow);
-  assert.notDeepEqual(today, hard);
+test("buildDailyMathQuiz: different dates, grades, or ratios differ", () => {
+  const base = buildDailyMathQuiz("2026-09-29", 3);
+  assert.notDeepEqual(base, buildDailyMathQuiz("2026-09-30", 3));
+  assert.notDeepEqual(base, buildDailyMathQuiz("2026-09-29", 4));
+  assert.notDeepEqual(base, buildDailyMathQuiz("2026-09-29", 3, 10, 4, 50));
 });
 
-test("buildDailyMathQuiz: all four operations appear, options valid", () => {
-  const quiz = buildDailyMathQuiz("2026-09-29", "easy");
-  const opKinds = new Set<string>();
-  for (const q of quiz) {
-    assert.equal(q.options.length, 4);
-    assert.equal(new Set(q.options).size, 4);
-    assert.ok(q.options.includes(q.answer));
-    // classify: divisible pair with small numbers → div; else infer from answer
-    opKinds.add(q.a % q.b === 0 && q.b <= 5 && q.a / q.b === q.answer ? "div" : "other");
+test("buildDailyMathQuiz: grade 1 has add/sub only, operands ≤ 20", () => {
+  for (let run = 0; run < 5; run++) {
+    const quiz = buildDailyMathQuiz("2026-09-29", 1);
+    for (const q of quiz) {
+      assert.ok([q.a + q.b, q.a - q.b].includes(q.answer), "grade 1 is add/sub only");
+      assert.ok(!q.label, "grade 1 default has no multi-term");
+      assert.ok(Math.max(q.a, q.b) <= 20, "grade 1 operand ≤ 20");
+    }
   }
-  assert.ok(opKinds.has("div"));
+});
+
+test("buildDailyMathQuiz: grade 2+ mixes all four operations", () => {
+  const quiz = buildDailyMathQuiz("2026-09-29", 2);
   assert.ok(quiz.some((q) => q.answer === q.a + q.b), "add present");
   assert.ok(quiz.some((q) => q.answer === q.a - q.b), "sub present");
   assert.ok(quiz.some((q) => q.answer === q.a * q.b), "mul present");
-});
-
-test("buildDailyMathQuiz: operand bounds grow with the level", () => {
-  const easy = buildDailyMathQuiz("2026-09-29", "easy");
-  const hard = buildDailyMathQuiz("2026-09-29", "hard");
   const isDiv = (q: { a: number; b: number; answer: number }) =>
     q.a % q.b === 0 && q.answer === q.a / q.b;
-  for (const q of easy) {
-    if (isDiv(q)) continue; // dividend size isn't the difficulty driver for div
-    assert.ok(Math.max(q.a, q.b) <= 10, `easy operand ≤ 10 (${q.a}, ${q.b})`);
+  assert.ok(quiz.some(isDiv), "div present");
+});
+
+test("buildDailyMathQuiz: multi-term ratio controls the mix", () => {
+  const none = buildDailyMathQuiz("2026-09-29", 3, 10, 4, 0);
+  assert.equal(none.filter((q) => q.label).length, 0);
+
+  const all = buildDailyMathQuiz("2026-09-29", 3, 10, 4, 100);
+  assert.equal(all.filter((q) => q.label).length, 10);
+
+  const half = buildDailyMathQuiz("2026-09-29", 3, 10, 4, 50);
+  assert.equal(half.filter((q) => q.label).length, 5);
+});
+
+test("buildDailyMathQuiz: multi-term labels parse and answers stay non-negative", () => {
+  for (let run = 0; run < 10; run++) {
+    const quiz = buildDailyMathQuiz("2026-09-29", 5, 10, 4, 60);
+    for (const q of quiz.filter((x) => x.label)) {
+      const label = q.label ?? "";
+      const m = label.match(/^(\d+) ([+−]) (\d+) ([+−]) (\d+) = \?$/);
+      assert.ok(m, `label shape: ${q.label}`);
+      let v = Number(m![1]);
+      v = m![2] === "+" ? v + Number(m![3]) : v - Number(m![3]);
+      v = m![4] === "+" ? v + Number(m![5]) : v - Number(m![5]);
+      assert.equal(v, q.answer, `label math: ${q.label}`);
+      assert.ok(q.answer >= 0, "non-negative");
+      assert.ok(new Set(q.options).size === q.options.length);
+      assert.ok(q.options.includes(q.answer));
+    }
   }
-  const hardMax = Math.max(...hard.flatMap((q) => [q.a, q.b]));
-  assert.ok(hardMax > 50, "hard reaches beyond 50");
+});
+
+test("dailyDifficulty: grows with grade and multi-term ratio", () => {
+  assert.ok(dailyDifficulty(1, 0) < dailyDifficulty(3, 0));
+  assert.ok(dailyDifficulty(3, 0) < dailyDifficulty(6, 0));
+  assert.ok(dailyDifficulty(3, 0) < dailyDifficulty(3, 50));
+  assert.ok(dailyDifficulty(6, 100) <= 100);
 });

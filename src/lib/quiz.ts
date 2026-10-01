@@ -59,6 +59,7 @@ export interface QuizQuestion {
   b: number; // right operand (div: the divisor)
   answer: number;
   options: number[]; // unique values, includes the answer
+  label?: string; // custom display for multi-term questions ("12 + 8 − 5 = ?")
 }
 
 /** Fisher–Yates shuffle; returns a new array, input untouched. */
@@ -211,44 +212,104 @@ function buildRangeQuiz(config: QuizConfig): QuizQuestion[] {
 
 // ---------- 오늘의 산수 (date-seeded daily set) ----------
 
-export type DailyLevel = "easy" | "normal" | "hard";
+/** Korean elementary grade presets (수와 연산 progression). */
+export type Grade = 1 | 2 | 3 | 4 | 5 | 6;
 
-const DAILY_LEVELS: Record<
-  DailyLevel,
-  { opsRange: number; mulMax: number; divMax: number; seedOffset: number }
+export const GRADE_PRESETS: Record<
+  Grade,
+  {
+    opsRange: number; // add/sub operand upper bound
+    mulMax: number; // times-table ceiling for mul/div
+    ops: QuizOp[]; // operations mixed into the set
+    blurb: string; // one-line curriculum description
+  }
 > = {
-  easy: { opsRange: 10, mulMax: 5, divMax: 5, seedOffset: 1 },
-  normal: { opsRange: 50, mulMax: 9, divMax: 9, seedOffset: 2 },
-  hard: { opsRange: 100, mulMax: 12, divMax: 12, seedOffset: 3 },
+  1: { opsRange: 20, mulMax: 2, ops: ["add", "sub"], blurb: "20까지 덧셈·뺄셈" },
+  2: { opsRange: 100, mulMax: 9, ops: ["add", "sub", "mul", "div"], blurb: "100까지 사칙연산 + 구구단" },
+  3: { opsRange: 1000, mulMax: 9, ops: ["add", "sub", "mul", "div"], blurb: "1,000까지 사칙연산" },
+  4: { opsRange: 10000, mulMax: 9, ops: ["add", "sub", "mul", "div"], blurb: "10,000까지 사칙연산" },
+  5: { opsRange: 100000, mulMax: 9, ops: ["add", "sub", "mul", "div"], blurb: "큰 수 사칙연산 · 다항 추천" },
+  6: { opsRange: 1000000, mulMax: 9, ops: ["add", "sub", "mul", "div"], blurb: "백만까지 · 혼합·다항 연산" },
 };
 
-/** The day's 10-question mixed-ops set. Seeded by (date, level) so everyone
- *  playing on the same day gets the same questions — a fresh set lands at
- *  midnight. All four operations are guaranteed to appear. */
+/** One multi-term question (a ± b ± c), result never negative. */
+function multiTermQuestion(
+  rng: () => number,
+  opsRange: number,
+  optionCount: number,
+): QuizQuestion {
+  const pick = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
+  const step = distractorStep(opsRange);
+
+  let a = 0, b = 0, c = 0;
+  let op1 = "+", op2 = "+";
+  let answer = -1;
+  for (let attempt = 0; attempt < 30 && answer < 0; attempt++) {
+    a = pick(1, opsRange);
+    b = pick(1, opsRange);
+    c = pick(1, opsRange);
+    op1 = rng() < 0.5 ? "+" : "−";
+    op2 = rng() < 0.5 ? "+" : "−";
+    answer = op1 === "+" ? a + b : a - b;
+    answer = op2 === "+" ? answer + c : answer - c;
+  }
+  if (answer < 0) {
+    // guaranteed-safe fallback: all addition
+    op1 = "+";
+    op2 = "+";
+    answer = a + b + c;
+  }
+
+  const pool = [1, 2, 3, 4].flatMap((k) => [answer - k * step, answer + k * step]);
+  const label = `${a} ${op1} ${b} ${op2} ${c} = ?`;
+  // a/b stay 0 for multi-term — the label carries the expression.
+  return { a: 0, b: 0, answer, label, ...assembleParts(answer, optionCount, pool, rng) };
+}
+
+/** Distractor assembly without operand bookkeeping (multi-term helper). */
+function assembleParts(
+  answer: number,
+  optionCount: number,
+  distractorPool: number[],
+  rng: () => number,
+): Pick<QuizQuestion, "options"> {
+  const distractors = shuffleWith(
+    [...new Set(distractorPool.filter((v) => v > 0 && v !== answer))],
+    rng,
+  ).slice(0, optionCount - 1);
+  return { options: shuffleWith([answer, ...distractors], rng) };
+}
+
+/** The day's mixed-ops set for a school grade. Seeded by (date, grade,
+ *  multiTermRatio) so everyone playing the same day gets the same questions.
+ *  multiTermRatio (0–100) sets how many questions are a ± b ± c. */
 export function buildDailyMathQuiz(
   dateStr: string, // "YYYY-MM-DD"
-  level: DailyLevel,
+  grade: Grade,
   questionCount = 10,
   optionCount = 4,
+  multiTermRatio = 0, // percent of multi-term (a ± b ± c) questions
 ): QuizQuestion[] {
   const digits = Number(dateStr.replace(/-/g, ""));
-  const cfg = DAILY_LEVELS[level];
-  const rng = mulberry32(digits * 10 + cfg.seedOffset);
+  const cfg = GRADE_PRESETS[grade];
+  const rng = mulberry32(digits * 10 + grade);
   const pick = (lo: number, hi: number) => lo + Math.floor(rng() * (hi - lo + 1));
 
-  // Shuffled op pattern with every operation appearing at least twice.
-  const pattern = shuffleWith(
-    ["add", "sub", "mul", "div", "add", "sub", "mul", "div", "mul", "div"],
-    rng,
-  );
+  // Op pattern from the grade's mix, repeated to fill the set.
+  const pattern = shuffleWith(cfg.ops, rng);
+
+  const multiTermCount = Math.round((questionCount * multiTermRatio) / 100);
 
   return Array.from({ length: questionCount }, (_, i) => {
-    const op = pattern[i % pattern.length];
+    if (i < multiTermCount) {
+      return multiTermQuestion(rng, cfg.opsRange, optionCount);
+    }
+    const op = pattern[(i - multiTermCount) % pattern.length];
     if (op === "mul") {
       return mulQuestion(pick(2, cfg.mulMax), pick(1, 9), optionCount, rng);
     }
     if (op === "div") {
-      return divQuestion(pick(2, cfg.divMax), pick(1, 9), optionCount, rng);
+      return divQuestion(pick(2, cfg.mulMax), pick(1, 9), optionCount, rng);
     }
     return rangeQuestion(
       op as "add" | "sub",
@@ -259,6 +320,16 @@ export function buildDailyMathQuiz(
       pick(1, cfg.opsRange),
     );
   });
+}
+
+/** Difficulty for a daily set: a fixed base per grade (curriculum weight)
+ *  plus a sliver for the multi-term share. */
+export function dailyDifficulty(grade: Grade, multiTermRatio: number): number {
+  const gradePts: Record<Grade, number> = { 1: 8, 2: 16, 3: 24, 4: 32, 5: 40, 6: 48 };
+  const multiPts = Math.round(multiTermRatio / 10); // 0–10
+  const timeoutPts = 12; // fixed 10s timeout
+  const countPts = 5; // fixed 10 questions
+  return Math.round(clamp(gradePts[grade] + multiPts + timeoutPts + countPts, 0, 100));
 }
 
 /** A game's questions for any operation. */
@@ -294,7 +365,8 @@ export function buildPlayQuestions(config: QuizConfig): PlayQuestion[] {
     }));
   }
   return buildQuiz(config).map((q) => ({
-    display: `${q.a} ${OP_SYMBOL[config.op]} ${q.b} = ?`,
+    display:
+      q.label ?? `${q.a} ${OP_SYMBOL[config.op]} ${q.b} = ?`,
     options: q.options.map(String),
     answer: String(q.answer),
   }));
