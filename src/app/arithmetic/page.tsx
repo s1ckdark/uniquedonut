@@ -381,9 +381,10 @@ export default function ArithmeticPage() {
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
               {question.label ? (
-                question.label.replace("= ?", "=") + (
+                <>
+                  {question.label.replace("= ?", "= ")}
                   <span className="text-[#FFD93D]">?</span>
-                )
+                </>
               ) : (
                 <>
                   {question.a}{" "}
