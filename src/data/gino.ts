@@ -106,4 +106,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "🧠",
     color: "#c77dff",
   },
+  {
+    slug: "dictation",
+    name: "받아쓰기",
+    description: "소리 듣고 맞춤법 고르기",
+    href: "/dictation",
+    emoji: "📝",
+    color: "#6BCB77",
+  },
 ];

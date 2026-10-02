@@ -370,10 +370,11 @@ export function findTopic(slug: string): ContentTopic | undefined {
   return contentTopics.find((t) => t.slug === slug);
 }
 
-/** Emoji for a leaderboard topic slug — story topics plus the daily-math
- *  and memory challenges. */
+/** Emoji for a leaderboard topic slug — story topics plus the daily-math,
+ *  memory, and dictation challenges. */
 export function topicEmoji(slug: string): string {
   if (slug === "daily-math") return "🧮";
   if (slug === "memory") return "🧠";
+  if (slug === "dictation") return "📝";
   return findTopic(slug)?.emoji ?? "📚";
 }
