@@ -403,6 +403,8 @@ export function campingDifficulty(age: CampingAge): number {
 export interface CampingScore {
   score: number;
   totalSeconds: number;
+  /** Optional per-category breakdown carried through to the podium. */
+  byCategory?: Record<CampingCategory, number>;
 }
 
 export interface RankedCampingPlayer extends CampingScore {
@@ -415,11 +417,7 @@ export function rankCampingPlayers(
   players: CampingPlayer[],
   scores: CampingScore[],
 ): RankedCampingPlayer[] {
-  const rows = players.map((player, i) => ({
-    player,
-    score: scores[i].score,
-    totalSeconds: scores[i].totalSeconds,
-  }));
+  const rows = players.map((player, i) => ({ player, ...scores[i] }));
   rows.sort((a, b) => b.score - a.score || a.totalSeconds - b.totalSeconds);
   const ranked: RankedCampingPlayer[] = [];
   rows.forEach((row, i) => {
