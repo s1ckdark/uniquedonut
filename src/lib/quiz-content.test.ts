@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contentTopics } from "./quiz-content";
+import { contentTopics, topicEmoji } from "./quiz-content";
 
 test("contentTopics: eight topics with unique slugs", () => {
   assert.equal(contentTopics.length, 8);
@@ -43,4 +43,11 @@ test("contentTopics: slugs match the gino content routes", () => {
       `missing ${slug}`,
     );
   }
+});
+
+test("topicEmoji: non-story topics map to their fixed emoji", () => {
+  assert.equal(topicEmoji("daily-math"), "🧮");
+  assert.equal(topicEmoji("memory"), "🧠");
+  assert.equal(topicEmoji("dictation"), "📝");
+  assert.equal(topicEmoji("camping"), "🏕️");
 });

@@ -376,5 +376,6 @@ export function topicEmoji(slug: string): string {
   if (slug === "daily-math") return "🧮";
   if (slug === "memory") return "🧠";
   if (slug === "dictation") return "📝";
+  if (slug === "camping") return "🏕️";
   return findTopic(slug)?.emoji ?? "📚";
 }

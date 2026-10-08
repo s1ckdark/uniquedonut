@@ -114,4 +114,12 @@ export const ginoContents: GinoContent[] = [
     emoji: "📝",
     color: "#6BCB77",
   },
+  {
+    slug: "camping",
+    name: "캠핑 챌린지",
+    description: "친구랑 같이 순위 대결!",
+    href: "/camping",
+    emoji: "🏕️",
+    color: "#F4A261",
+  },
 ];
