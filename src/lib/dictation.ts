@@ -2,6 +2,8 @@
 // realistic misspelling traps (사이시옷, 된소리, 두음법칙, 되/돼, 띄어쓰기…).
 // Pure module — no DOM, no React.
 
+import { shuffleWith } from "./quiz";
+
 export type DictationTier = "words" | "sentences" | "advanced";
 
 export interface DictationEntry {
@@ -57,29 +59,24 @@ export interface DictationQuestion {
   answer: string;
 }
 
-function shuffle<T>(arr: T[]): T[] {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
 
 /** A game's questions: bank entries shuffled (repeats only beyond the
- *  bank) with the answer shuffled into the options. */
+ *  bank) with the answer shuffled into the options. Pass a seeded rng
+ *  for deterministic draws (camping games). */
 export function buildDictationQuestions(
   tier: DictationTier,
   questionCount: number,
+  rng: () => number = Math.random,
 ): DictationQuestion[] {
-  let bank = shuffle(DICTATION_BANK[tier]);
+  const draw = () => shuffleWith(DICTATION_BANK[tier], rng);
+  let bank = draw();
   while (bank.length < questionCount) {
-    bank = bank.concat(shuffle(DICTATION_BANK[tier]));
+    bank = bank.concat(draw());
   }
   return bank.slice(0, questionCount).map((entry) => ({
     word: entry.word,
     answer: entry.word,
-    options: shuffle([entry.word, ...entry.distractors]),
+    options: shuffleWith([entry.word, ...entry.distractors], rng),
   }));
 }
 
