@@ -1,8 +1,28 @@
 # Camping Challenge (`/camping`) — Design
 
 **Date:** 2026-10-08
-**Status:** Approved
-**Route:** `/camping` (gino menu: "🏕️ 캠핑 챌린지")
+**Status:** Approved (revised 2026-10-12 — 일반 대상 복합 챌린지)
+**Route:** `/camping` (gino menu: "🏕️ 종합 챌린지")
+
+## Revision (2026-10-12): general-audience mixed challenge
+
+The kid-specific camping framing becomes a general mixed challenge:
+
+- **Modes:** 싱글 플레이 (one player, school+name save prompt, same as
+  dictation) AND 친구랑 대결 (pass-and-play 2–4, podium + save-all).
+  Mode selector on the setup screen.
+- **Difficulty:** `CampingLevel = "easy" | "normal" | "hard"` replaces
+  `CampingAge = 6 | 8`. easy = former 6세 content, normal = former 8세,
+  hard = new: memory 8 items/6s, math add/sub ≤100 + × tables 2–9,
+  word = dictation advanced tier, +8 new hard logic puzzles
+  (2 4 8 16·1 4 9 16·triangular·moon phases; 거미/달/소금/4월
+  odd-one-outs). `campingDifficulty`: 22/34/46 (🌱/🔥/⚡).
+- Single mode: level picker on setup, 8-round solo game, results screen
+  with medal + D1 save prompt (school + name, `gino-quiz-school`).
+- Party mode: per-player level toggle replaces the age toggle; podium
+  shows level labels instead of ages. Round order/content fairness model
+  unchanged.
+
 
 ## Goal
 
