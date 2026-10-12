@@ -116,8 +116,8 @@ export const ginoContents: GinoContent[] = [
   },
   {
     slug: "camping",
-    name: "캠핑 챌린지",
-    description: "친구랑 같이 순위 대결!",
+    name: "종합 챌린지",
+    description: "기억·사고·산수·단어 복합 대결",
     href: "/camping",
     emoji: "🏕️",
     color: "#F4A261",

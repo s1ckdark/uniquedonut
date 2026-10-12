@@ -8,10 +8,11 @@ import {
   rankCampingPlayers,
   CATEGORY_EMOJI,
   CAMPING_SCORE_CONFIG,
+  LEVEL_LABELS,
   ROUND_TIMEOUT_MS,
   TOTAL_ROUNDS,
-  type CampingAge,
   type CampingCategory,
+  type CampingLevel,
   type CampingPlayer,
   type CampingPlayerGame,
   type RankedCampingPlayer,
@@ -25,8 +26,10 @@ const MAX_PLAYERS = 4;
 const ROSTER_KEY = "gino-camping-players";
 
 const MEDALS = ["🥇", "🥈", "🥉", "🎖️"];
+const LEVELS: CampingLevel[] = ["easy", "normal", "hard"];
 
-type Phase = "setup" | "handoff" | "play" | "podium";
+type Phase = "setup" | "handoff" | "play" | "results" | "podium" | "saved";
+type Mode = "single" | "party";
 type SaveState = "idle" | "saving" | "saved" | "offline";
 type RoundStage = "flash" | "question";
 
@@ -62,10 +65,12 @@ function speak(text: string): boolean {
 
 export default function CampingPage() {
   const [phase, setPhase] = useState<Phase>("setup");
+  const [mode, setMode] = useState<Mode>("single");
+  const [level, setLevel] = useState<CampingLevel>("normal");
   const [roster, setRoster] = useState<CampingPlayer[]>([
-    { name: "", age: 6 },
-    { name: "", age: 8 },
-    { name: "", age: 8 },
+    { name: "", level: "easy" },
+    { name: "", level: "normal" },
+    { name: "", level: "normal" },
   ]);
   const [games, setGames] = useState<CampingPlayerGame[]>([]);
   const [playerIdx, setPlayerIdx] = useState(0);
@@ -79,6 +84,12 @@ export default function CampingPage() {
   const [speechOk, setSpeechOk] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
+  const [name, setName] = useState("");
+  const [school, setSchool] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rank, setRank] = useState<number | null>(null);
+
   const startRef = useRef<number>(0);
   const playerStartRef = useRef<number>(0);
 
@@ -87,6 +98,8 @@ export default function CampingPage() {
   const locked = picked !== null || timedOut;
 
   useEffect(() => {
+    const savedSchool = window.localStorage.getItem("gino-quiz-school");
+    if (savedSchool) setSchool(savedSchool);
     try {
       const saved = window.localStorage.getItem(ROSTER_KEY);
       if (saved) {
@@ -95,7 +108,10 @@ export default function CampingPage() {
           Array.isArray(parsed) &&
           parsed.length >= MIN_PLAYERS &&
           parsed.length <= MAX_PLAYERS &&
-          parsed.every((p) => (p.age === 6 || p.age === 8) && typeof p.name === "string")
+          parsed.every(
+            (p) =>
+              LEVELS.includes(p.level) && typeof p.name === "string",
+          )
         ) {
           setRoster(parsed);
         }
@@ -108,9 +124,21 @@ export default function CampingPage() {
     }
   }, []);
 
-  function startGame() {
+  function startSingleGame() {
+    setGames(buildCampingGame(Date.now(), [{ name: "나", level }]));
+    setResults([emptyResult()]);
+    setPlayerIdx(0);
+    setRoundIdx(0);
+    setSaveState("idle");
+    setRank(null);
+    setError(null);
+    playerStartRef.current = Date.now();
+    setPhase("play");
+  }
+
+  function startPartyGame() {
     const players = roster.map((p, i) => ({
-      age: p.age,
+      level: p.level,
       name: p.name.trim() || `참가자${i + 1}`,
     }));
     window.localStorage.setItem(ROSTER_KEY, JSON.stringify(players));
@@ -130,8 +158,6 @@ export default function CampingPage() {
     playerStartRef.current = Date.now();
     setPhase("play");
   }, []);
-
-  const roundCategory = round?.category;
 
   // Entering a round: memory rounds flash first, everything else (and the
   // timer) starts immediately. Word rounds speak as the question appears.
@@ -179,11 +205,15 @@ export default function CampingPage() {
         setGained(null);
         return;
       }
-      // this player is done — record their time, pass to the next kid
+      // this player is done — record their time, then results or next kid
       const seconds = (Date.now() - playerStartRef.current) / 1000;
       setResults((prev) =>
         prev.map((r, i) => (i === playerIdx ? { ...r, totalSeconds: seconds } : r)),
       );
+      if (mode === "single") {
+        setPhase("results");
+        return;
+      }
       if (playerIdx + 1 < games.length) {
         setPlayerIdx(playerIdx + 1);
         setPhase("handoff");
@@ -221,6 +251,36 @@ export default function CampingPage() {
     }
   }
 
+  const soloTotal = results[0]?.score ?? 0;
+  const soloSeconds = results[0]?.totalSeconds ?? 0;
+  const soloLevel = games[0]?.player.level ?? level;
+
+  async function saveSoloScore() {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      setSaving(true);
+      setError(null);
+      const { id, entries } = await submitScore({
+        name: trimmed,
+        ...(school.trim() ? { school: school.trim() } : {}),
+        score: soloTotal,
+        totalSeconds: soloSeconds,
+        date: new Date().toISOString(),
+        difficulty: campingDifficulty(soloLevel),
+        topic: "camping",
+      });
+      window.localStorage.setItem("gino-quiz-school", school.trim());
+      const idx = entries.findIndex((e) => e.id === id);
+      setRank(idx >= 0 ? idx + 1 : null);
+      setPhase("saved");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveAll(ranked: RankedCampingPlayer[]) {
     try {
       setSaveState("saving");
@@ -230,7 +290,7 @@ export default function CampingPage() {
           score: row.score,
           totalSeconds: row.totalSeconds,
           date: new Date().toISOString(),
-          difficulty: campingDifficulty(row.player.age),
+          difficulty: campingDifficulty(row.player.level),
           topic: "camping",
         });
       }
@@ -241,6 +301,10 @@ export default function CampingPage() {
   }
 
   function rematch() {
+    if (mode === "single") {
+      startSingleGame();
+      return;
+    }
     const players = games.map((g) => g.player);
     setGames(buildCampingGame(Date.now(), players));
     setResults(players.map(() => emptyResult()));
@@ -268,6 +332,15 @@ export default function CampingPage() {
 
   const maxGauge = stage === "flash" ? (round?.flash?.ms ?? 1) : ROUND_TIMEOUT_MS;
 
+  const soloMedal =
+    soloTotal === 100
+      ? { emoji: "🏆", msg: "완벽해요! 전 종목 마스터!" }
+      : soloTotal >= 80
+        ? { emoji: "🥇", msg: "대단해요! 머리가 총명하네요!" }
+        : soloTotal >= 50
+          ? { emoji: "🥈", msg: "잘했어요! 아쉬운 종목만 다시!" }
+          : { emoji: "🥉", msg: "괜찮아요! 할수록 늘어요!" };
+
   return (
     <div className="min-h-screen bg-[#1F1410] text-[#FEFEFE]">
       <main className="mx-auto max-w-2xl px-4 py-8">
@@ -280,8 +353,8 @@ export default function CampingPage() {
           </Link>
           {phase === "play" && (
             <span className="font-mono text-sm text-white/50">
-              {currentName} · {roundIdx + 1} / {TOTAL_ROUNDS} ·{" "}
-              {fmtPts(results[playerIdx]?.score ?? 0)}점
+              {mode === "party" ? `${currentName} · ` : ""}
+              {roundIdx + 1} / {TOTAL_ROUNDS} · {fmtPts(results[playerIdx]?.score ?? 0)}점
             </span>
           )}
         </div>
@@ -295,16 +368,16 @@ export default function CampingPage() {
               textShadow: "0 0 20px rgba(244,162,97,0.5), 3px 3px 0px #FFD93D",
             }}
           >
-            CAMPING
+            MIXED
           </h1>
           <p
             className="mt-3 text-lg tracking-widest uppercase"
             style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
           >
-            캠핑 챌린지 🏕️
+            종합 챌린지 🏕️
           </p>
           <p className="mt-2 text-sm text-white/50">
-            기억력 · 사고력 · 산수 · 단어 — 8라운드 순위 대결
+            기억력 · 사고력 · 산수 · 단어 — 8라운드 복합 대결
           </p>
         </header>
 
@@ -312,96 +385,152 @@ export default function CampingPage() {
         {phase === "setup" && (
           <div className="space-y-5">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-sm font-bold text-white/70">
-                참가자 ({roster.length}명)
-              </p>
-              <div className="space-y-3">
-                {roster.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      value={p.name}
-                      onChange={(e) =>
-                        setRoster((prev) =>
-                          prev.map((row, j) =>
-                            j === i
-                              ? { ...row, name: e.target.value.slice(0, 12) }
-                              : row,
-                          ),
-                        )
-                      }
-                      placeholder={`참가자${i + 1} 이름`}
-                      className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#F4A261]"
-                      aria-label={`참가자 ${i + 1} 이름`}
-                    />
-                    {[6, 8].map((age) => (
-                      <button
-                        key={age}
-                        type="button"
-                        onClick={() =>
+              <p className="mb-3 text-sm font-bold text-white/70">모드</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMode("single")}
+                  className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                    mode === "single"
+                      ? "bg-[#F4A261] text-black"
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
+                  }`}
+                >
+                  👤 혼자 도전
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("party")}
+                  className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                    mode === "party"
+                      ? "bg-[#F4A261] text-black"
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
+                  }`}
+                >
+                  👥 친구랑 대결
+                </button>
+              </div>
+            </div>
+
+            {mode === "single" ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <p className="mb-3 text-sm font-bold text-white/70">난이도</p>
+                <div className="flex gap-2">
+                  {LEVELS.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setLevel(l)}
+                      className={`flex-1 rounded-full py-2 text-sm font-bold transition cursor-pointer ${
+                        level === l
+                          ? "bg-[#F4A261] text-black"
+                          : "bg-white/10 text-white/70 hover:bg-white/20"
+                      }`}
+                    >
+                      {LEVEL_LABELS[l]}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-white/50">
+                  선택한 난이도 · {campingDifficulty(level)}{" "}
+                  {difficultyLabel(campingDifficulty(level))} · 리더보드에 내
+                  기록이 남아요
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <p className="mb-3 text-sm font-bold text-white/70">
+                  참가자 ({roster.length}명)
+                </p>
+                <div className="space-y-3">
+                  {roster.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        value={p.name}
+                        onChange={(e) =>
                           setRoster((prev) =>
                             prev.map((row, j) =>
-                              j === i ? { ...row, age: age as CampingAge } : row,
+                              j === i
+                                ? { ...row, name: e.target.value.slice(0, 12) }
+                                : row,
                             ),
                           )
                         }
-                        className={`rounded-full px-3 py-2 text-xs font-bold transition cursor-pointer ${
-                          p.age === age
-                            ? "bg-[#F4A261] text-black"
-                            : "bg-white/10 text-white/60 hover:bg-white/20"
-                        }`}
-                      >
-                        {age}세
-                      </button>
-                    ))}
-                    {roster.length > MIN_PLAYERS && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setRoster((prev) => prev.filter((_, j) => j !== i))
-                        }
-                        className="rounded-full bg-white/10 px-2.5 py-2 text-xs text-white/50 transition hover:bg-[#FF6B6B]/30 cursor-pointer"
-                        aria-label={`${i + 1}번 참가자 삭제`}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        placeholder={`참가자${i + 1} 이름`}
+                        className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#F4A261]"
+                        aria-label={`참가자 ${i + 1} 이름`}
+                      />
+                      {LEVELS.map((l) => (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() =>
+                            setRoster((prev) =>
+                              prev.map((row, j) =>
+                                j === i ? { ...row, level: l } : row,
+                              ),
+                            )
+                          }
+                          className={`rounded-full px-2.5 py-2 text-xs font-bold transition cursor-pointer ${
+                            p.level === l
+                              ? "bg-[#F4A261] text-black"
+                              : "bg-white/10 text-white/60 hover:bg-white/20"
+                          }`}
+                        >
+                          {l === "easy" ? "🌱" : l === "normal" ? "🔥" : "⚡"}
+                        </button>
+                      ))}
+                      {roster.length > MIN_PLAYERS && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRoster((prev) => prev.filter((_, j) => j !== i))
+                          }
+                          className="rounded-full bg-white/10 px-2.5 py-2 text-xs text-white/50 transition hover:bg-[#FF6B6B]/30 cursor-pointer"
+                          aria-label={`${i + 1}번 참가자 삭제`}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {roster.length < MAX_PLAYERS && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRoster((prev) => [...prev, { name: "", level: "normal" }])
+                    }
+                    className="mt-3 w-full rounded-xl border border-dashed border-white/20 py-2 text-sm font-bold text-white/50 transition hover:border-[#F4A261] hover:text-[#F4A261] cursor-pointer"
+                  >
+                    + 참가자 추가
+                  </button>
+                )}
+                <p className="mt-2 text-xs text-white/40">
+                  참가자마다 난이도(🌱🔥⚡)를 따로 고를 수 있어요 — 다 풀면
+                  모닥불 시상대에서 순위 발표!
+                </p>
               </div>
-              {roster.length < MAX_PLAYERS && (
-                <button
-                  type="button"
-                  onClick={() => setRoster((prev) => [...prev, { name: "", age: 8 }])}
-                  className="mt-3 w-full rounded-xl border border-dashed border-white/20 py-2 text-sm font-bold text-white/50 transition hover:border-[#F4A261] hover:text-[#F4A261] cursor-pointer"
-                >
-                  + 참가자 추가
-                </button>
-              )}
-              <p className="mt-2 text-xs text-white/40">
-                나이에 맞춰 문제가 달라져요 — 6세는 쉬운 문제로, 8세는 한 단계
-                어려운 문제로!
-              </p>
-            </div>
+            )}
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/60">
               <p>🧠 기억력 💡 사고력 🔢 산수 ✏️ 단어 — 순서는 매번 랜덤!</p>
               <p className="mt-1">⏱ 라운드마다 10초 · 만점 100점 · 8라운드</p>
-              <p className="mt-1">🔥 다 풀면 모닥불 시상대에서 🥇🥈🥉 발표!</p>
             </div>
 
             <div className="text-center">
               <button
                 type="button"
-                onClick={startGame}
+                onClick={mode === "single" ? startSingleGame : startPartyGame}
                 className="rounded-full bg-gradient-to-r from-[#F4A261] to-[#FFD93D] px-10 py-4 text-xl font-black text-black transition hover:scale-105 active:scale-95 cursor-pointer"
               >
-                캠핑 챌린지 시작! 🔥
+                {mode === "single" ? "종합 챌린지 시작! 🚀" : "캠핑 대결 시작! 🔥"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ---------- handoff ---------- */}
+        {/* ---------- handoff (party only) ---------- */}
         {phase === "handoff" && game && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-5xl">🏕️</p>
@@ -415,8 +544,9 @@ export default function CampingPage() {
               {game.player.name}
             </p>
             <p className="mt-2 inline-block rounded-full bg-white/10 px-4 py-1 text-sm font-bold text-white/70">
-              {game.player.age}세 · 난이도 {campingDifficulty(game.player.age)}{" "}
-              {difficultyLabel(campingDifficulty(game.player.age))}
+              {LEVEL_LABELS[game.player.level]} · 난이도{" "}
+              {campingDifficulty(game.player.level)}{" "}
+              {difficultyLabel(campingDifficulty(game.player.level))}
             </p>
             <p className="mt-5 text-lg text-[#FFD93D]">
               나머지는 화면 안 봐요! ✋
@@ -436,8 +566,7 @@ export default function CampingPage() {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
             <div className="mb-2 flex items-center justify-between text-xs font-bold">
               <span className="text-[#F4A261]">
-                {CATEGORY_EMOJI[roundCategory as CampingCategory]}{" "}
-                {roundIdx + 1} / {TOTAL_ROUNDS}
+                {CATEGORY_EMOJI[round.category]} {roundIdx + 1} / {TOTAL_ROUNDS}
               </span>
               {stage === "question" && (
                 <span style={{ color: gaugeColor }}>
@@ -589,7 +718,106 @@ export default function CampingPage() {
           </div>
         )}
 
-        {/* ---------- podium ---------- */}
+        {/* ---------- results (single) ---------- */}
+        {phase === "results" && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-6xl">{soloMedal.emoji}</p>
+            <p
+              className="mt-4 text-5xl font-black"
+              style={{
+                fontFamily: "var(--font-space-grotesk)",
+                color: "#FFD93D",
+              }}
+            >
+              {fmtPts(soloTotal)} / 100점
+            </p>
+            <p className="mt-1 font-mono text-sm text-white/50">
+              ⏱ 총 {formatTime(soloSeconds)} · {LEVEL_LABELS[soloLevel]} · 난이도{" "}
+              {campingDifficulty(soloLevel)}
+            </p>
+            <p
+              className="mt-2 text-xl"
+              style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}
+            >
+              {soloMedal.msg}
+            </p>
+            <p className="mt-1 font-mono text-xs text-white/40">
+              {(Object.keys(CATEGORY_EMOJI) as CampingCategory[])
+                .map((c) => `${CATEGORY_EMOJI[c]} ${fmtPts(results[0]?.byCategory[c] ?? 0)}`)
+                .join(" · ")}
+            </p>
+
+            <div className="mx-auto mt-6 max-w-xs rounded-2xl border border-[#F4A261]/30 bg-[#F4A261]/10 p-4">
+              <p className="text-sm font-bold text-white/80">
+                🏆 리더보드에 남길까요?
+              </p>
+              <div className="mt-3 space-y-2">
+                <input
+                  value={school}
+                  onChange={(e) => setSchool(e.target.value.slice(0, 16))}
+                  placeholder="초등학교 (예: 위니초)"
+                  className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#F4A261]"
+                  aria-label="초등학교 이름"
+                />
+                <div className="flex gap-2">
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value.slice(0, 12))}
+                    placeholder="이름"
+                    className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-[#F4A261]"
+                    aria-label="리더보드 이름"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveSoloScore}
+                    disabled={!name.trim() || saving}
+                    className="rounded-xl bg-[#F4A261] px-4 py-2 text-sm font-black text-black transition hover:opacity-90 disabled:opacity-30 cursor-pointer"
+                  >
+                    {saving ? "저장 중..." : "저장"}
+                  </button>
+                </div>
+              </div>
+              {error && <p className="mt-2 text-xs text-[#FF6B9D]">{error}</p>}
+              <button
+                type="button"
+                onClick={rematch}
+                className="mt-3 text-xs text-white/50 underline transition hover:text-white/80 cursor-pointer"
+              >
+                저장 안 하고 다시 도전
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- saved (single) ---------- */}
+        {phase === "saved" && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+            <p className="text-4xl">🏅</p>
+            <p className="mt-2 text-lg font-bold text-[#FFD93D]">
+              {rank
+                ? `리더보드 ${rank}위에 등록했어요!`
+                : "리더보드에 등록했어요!"}
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={rematch}
+                className="rounded-full bg-gradient-to-r from-[#F4A261] to-[#FFD93D] px-6 py-2 font-black text-black transition hover:scale-105 cursor-pointer"
+              >
+                다시 도전!
+              </button>
+              <button
+                type="button"
+                onClick={() => setPhase("setup")}
+                className="rounded-full bg-white/10 px-6 py-2 font-bold text-white/70 transition hover:bg-white/20 cursor-pointer"
+              >
+                ⚙ 설정 바꾸기
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- podium (party) ---------- */}
         {phase === "podium" && (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
             <p className="text-6xl">🏕️🔥</p>
@@ -614,7 +842,7 @@ export default function CampingPage() {
                     <p className="text-xl font-black text-white">
                       {MEDALS[row.rank - 1] ?? "🎖️"} {row.player.name}
                       <span className="ml-2 text-xs font-bold text-white/40">
-                        {row.player.age}세
+                        {LEVEL_LABELS[row.player.level]}
                       </span>
                     </p>
                     <p

@@ -7,25 +7,26 @@ import {
   LOGIC_BANK,
   MEMORY_FLASH_POOL,
   CATEGORY_EMOJI,
+  LEVEL_LABELS,
   TOTAL_ROUNDS,
-  type CampingAge,
   type CampingCategory,
+  type CampingLevel,
   type CampingPlayer,
 } from "./camping";
 import { buildDictationQuestions, type DictationTier } from "./dictation";
 import { mulberry32 } from "./quiz";
 
-const KIDS: CampingPlayer[] = [
-  { name: "막내", age: 6 },
-  { name: "지노", age: 8 },
-  { name: "친구", age: 8 },
+const CROWD: CampingPlayer[] = [
+  { name: "쉬움", level: "easy" },
+  { name: "보통", level: "normal" },
+  { name: "어려움", level: "hard" },
 ];
 
-test("logic bank: at least 6 items per age level", () => {
-  for (const level of [6, 8] as CampingAge[]) {
+test("logic bank: at least 6 items per level", () => {
+  for (const level of ["easy", "normal", "hard"] as CampingLevel[]) {
     assert.ok(
       LOGIC_BANK.filter((p) => p.level === level).length >= 6,
-      `level ${level} needs ≥6 puzzles`,
+      `${level} needs ≥6 puzzles`,
     );
   }
 });
@@ -47,7 +48,7 @@ test("memory flash pool has at least 15 distinct emoji", () => {
 });
 
 test("game: 8 rounds, 2 per category, same order for every player", () => {
-  const games = buildCampingGame(42, KIDS);
+  const games = buildCampingGame(42, CROWD);
   assert.equal(games.length, 3);
   for (const game of games) {
     assert.equal(game.rounds.length, TOTAL_ROUNDS);
@@ -63,21 +64,21 @@ test("game: 8 rounds, 2 per category, same order for every player", () => {
 });
 
 test("game: same seed → identical game (determinism)", () => {
-  assert.deepEqual(buildCampingGame(42, KIDS), buildCampingGame(42, KIDS));
+  assert.deepEqual(buildCampingGame(42, CROWD), buildCampingGame(42, CROWD));
   assert.notDeepEqual(
-    buildCampingGame(42, KIDS),
-    buildCampingGame(43, KIDS),
+    buildCampingGame(42, CROWD),
+    buildCampingGame(43, CROWD),
   );
 });
 
 test("game: players get different content for the same round slots", () => {
-  const [a, b] = buildCampingGame(42, KIDS);
+  const [a, b] = buildCampingGame(42, CROWD);
   const differ = a.rounds.some((round, i) => round.answer !== b.rounds[i].answer);
   assert.ok(differ, "independent streams should diverge on some round");
 });
 
 test("game: every round has 4 unique options including the answer", () => {
-  for (const game of buildCampingGame(7, KIDS)) {
+  for (const game of buildCampingGame(7, CROWD)) {
     for (const round of game.rounds) {
       assert.equal(new Set(round.options).size, 4);
       assert.ok(round.options.includes(round.answer));
@@ -86,40 +87,47 @@ test("game: every round has 4 unique options including the answer", () => {
   }
 });
 
-test("game: 6세 math answers stay ≤ 10 and display uses + or −", () => {
-  const [young] = buildCampingGame(99, [KIDS[0]]);
-  for (const round of young.rounds.filter((r) => r.category === "math")) {
+test("game: easy math answers stay ≤ 10 and display uses + or −", () => {
+  const [game] = buildCampingGame(99, [CROWD[0]]);
+  for (const round of game.rounds.filter((r) => r.category === "math")) {
     assert.ok(Number(round.answer) <= 10);
     assert.ok(/[+−]/.test(round.display ?? ""));
   }
 });
 
-test("game: 8세 second math round is always multiplication (×)", () => {
-  const [old] = buildCampingGame(99, [KIDS[1]]);
-  const mathRounds = old.rounds.filter((r) => r.category === "math");
-  assert.equal(mathRounds.length, 2);
-  assert.ok(mathRounds.some((r) => (r.display ?? "").includes("×")));
+test("game: normal and hard second math round is always multiplication", () => {
+  for (const level of ["normal", "hard"] as CampingLevel[]) {
+    const [game] = buildCampingGame(99, [{ name: "p", level }]);
+    const mathRounds = game.rounds.filter((r) => r.category === "math");
+    assert.equal(mathRounds.length, 2);
+    assert.ok(mathRounds.some((r) => (r.display ?? "").includes("×")));
+  }
 });
 
-test("game: memory rounds flash 4 items/4s for 6세, 6 items/5s for 8세", () => {
-  const games = buildCampingGame(5, KIDS);
+test("game: hard math reaches beyond the normal range (answer > 50 somewhere)", () => {
+  const [game] = buildCampingGame(99, [CROWD[2]]);
+  const answers = game.rounds
+    .filter((r) => r.category === "math")
+    .map((r) => Number(r.answer));
+  assert.ok(answers.some((a) => a > 50), `hard answers were ${answers}`);
+});
+
+test("game: memory flash scales with level (4/6/8 items)", () => {
+  const games = buildCampingGame(5, CROWD);
+  const expect = { easy: [4, 4000], normal: [6, 5000], hard: [8, 6000] } as const;
   for (const game of games) {
     const flashRounds = game.rounds.filter((r) => r.category === "memory");
     for (const round of flashRounds) {
       assert.ok(round.flash);
-      if (game.player.age === 6) {
-        assert.equal(round.flash!.items.length, 4);
-        assert.equal(round.flash!.ms, 4000);
-      } else {
-        assert.equal(round.flash!.items.length, 6);
-        assert.equal(round.flash!.ms, 5000);
-      }
+      const [n, ms] = expect[game.player.level];
+      assert.equal(round.flash!.items.length, n);
+      assert.equal(round.flash!.ms, ms);
     }
   }
 });
 
 test("game: memory '없었던' answer is not flashed, '있었던' answer is flashed", () => {
-  const games = buildCampingGame(11, KIDS);
+  const games = buildCampingGame(11, CROWD);
   for (const game of games) {
     const flashRounds = game.rounds.filter((r) => r.category === "memory");
     const absent = flashRounds.find((r) => r.prompt.includes("없었던"));
@@ -131,11 +139,15 @@ test("game: memory '없었던' answer is not flashed, '있었던' answer is flas
   }
 });
 
-test("game: word rounds draw from the age-matched dictation tier", () => {
-  const tierOf = (age: CampingAge): DictationTier => (age === 6 ? "words" : "sentences");
-  const games = buildCampingGame(23, KIDS);
+test("game: word rounds draw from the level-matched dictation tier", () => {
+  const tierOf: Record<CampingLevel, DictationTier> = {
+    easy: "words",
+    normal: "sentences",
+    hard: "advanced",
+  };
+  const games = buildCampingGame(23, CROWD);
   for (const game of games) {
-    const tier = tierOf(game.player.age);
+    const tier = tierOf[game.player.level];
     const bankWords = new Set(
       buildDictationQuestions(tier, 10).map((q) => q.answer),
     );
@@ -146,11 +158,11 @@ test("game: word rounds draw from the age-matched dictation tier", () => {
   }
 });
 
-test("game: logic rounds match the player's age level", () => {
-  const games = buildCampingGame(31, KIDS);
+test("game: logic rounds match the player's level", () => {
+  const games = buildCampingGame(31, CROWD);
   for (const game of games) {
     const levelWords = new Set(
-      LOGIC_BANK.filter((p) => p.level === game.player.age).flatMap((p) => [
+      LOGIC_BANK.filter((p) => p.level === game.player.level).flatMap((p) => [
         p.answer,
         ...p.distractors,
       ]),
@@ -161,16 +173,21 @@ test("game: logic rounds match the player's age level", () => {
   }
 });
 
-test("difficulty: 6세 scores below 8세", () => {
-  assert.ok(campingDifficulty(6) < campingDifficulty(8));
+test("difficulty: easy < normal < hard", () => {
+  assert.ok(campingDifficulty("easy") < campingDifficulty("normal"));
+  assert.ok(campingDifficulty("normal") < campingDifficulty("hard"));
+});
+
+test("level labels cover all three levels", () => {
+  assert.deepEqual(Object.keys(LEVEL_LABELS).sort(), ["easy", "hard", "normal"]);
 });
 
 test("ranking: score desc, then totalSeconds asc, full ties share a rank", () => {
   const players: CampingPlayer[] = [
-    { name: "A", age: 8 },
-    { name: "B", age: 8 },
-    { name: "C", age: 6 },
-    { name: "D", age: 6 },
+    { name: "A", level: "normal" },
+    { name: "B", level: "hard" },
+    { name: "C", level: "easy" },
+    { name: "D", level: "easy" },
   ];
   const ranked = rankCampingPlayers(players, [
     { score: 80, totalSeconds: 60 },

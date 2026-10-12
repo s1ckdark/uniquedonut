@@ -1,6 +1,6 @@
-// Camping challenge: a pass-and-play mixed round game (memory, logic,
-// math, word) for 2–4 kids with age adjustment (6세/8세) and podium
-// ranking. Pure module — no DOM, no React.
+// 종합 챌린지 (formerly camping challenge): a mixed-round game
+// (memory, logic, math, word) supporting solo play and 2–4 player
+// pass-and-play with a podium ranking. Pure module — no DOM, no React.
 //
 // Fairness model: the round CATEGORY order is shuffled once per game
 // and shared by every player, while round CONTENT is drawn from a
@@ -13,8 +13,14 @@ import { buildDictationQuestions, type DictationTier } from "./dictation";
 
 // ---------- types & constants ----------
 
-export type CampingAge = 6 | 8;
+export type CampingLevel = "easy" | "normal" | "hard";
 export type CampingCategory = "memory" | "logic" | "math" | "word";
+
+export const LEVEL_LABELS: Record<CampingLevel, string> = {
+  easy: "🌱 쉬움",
+  normal: "🔥 보통",
+  hard: "⚡ 어려움",
+};
 
 export const CATEGORY_EMOJI: Record<CampingCategory, string> = {
   memory: "🧠",
@@ -41,7 +47,7 @@ export const CAMPING_SCORE_CONFIG: QuizConfig = {
 
 export interface CampingPlayer {
   name: string;
-  age: CampingAge;
+  level: CampingLevel;
 }
 
 export interface CampingRound {
@@ -65,7 +71,7 @@ export interface CampingPlayerGame {
 // ---------- logic bank (사고력) ----------
 
 export interface LogicPuzzle {
-  level: CampingAge;
+  level: CampingLevel;
   prompt: string;
   display?: string;
   answer: string;
@@ -73,111 +79,164 @@ export interface LogicPuzzle {
 }
 
 export const LOGIC_BANK: LogicPuzzle[] = [
-  // ----- 6세: simple AB-AB patterns + clear odd-one-out -----
+  // ----- easy: simple AB-AB patterns + clear odd-one-out -----
   {
-    level: 6,
+    level: "easy",
     prompt: "다음에 올 것은?",
     display: "🍎 🍌 🍎 🍌 🍎 ?",
     answer: "🍌",
     distractors: ["🍇", "🍕", "🥕"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "다음에 올 것은?",
     display: "🔴 🔵 🔴 🔵 🔴 ?",
     answer: "🔵",
     distractors: ["🟢", "🟡", "⚪"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "다음에 올 것은?",
     display: "🐶 🐱 🐶 🐱 🐶 ?",
     answer: "🐱",
     distractors: ["🐹", "🐰", "🦊"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "다음에 올 것은?",
     display: "⭐ 🌙 ⭐ 🌙 ⭐ ?",
     answer: "🌙",
     distractors: ["☀️", "☁️", "🌈"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "어울리지 않는 하나는?",
     answer: "상어",
     distractors: ["사자", "토끼", "호랑이"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "어울리지 않는 하나는?",
     answer: "당근",
     distractors: ["사과", "바나나", "포도"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "어울리지 않는 하나는?",
     answer: "돌고래",
     distractors: ["개", "고양이", "소"],
   },
   {
-    level: 6,
+    level: "easy",
     prompt: "어울리지 않는 하나는?",
     answer: "사자",
     distractors: ["노랑", "빨강", "파랑"],
   },
-  // ----- 8세: grouped/number patterns + category odd-one-out -----
+  // ----- normal: grouped/number patterns + category odd-one-out -----
   {
-    level: 8,
+    level: "normal",
     prompt: "다음에 올 것은?",
     display: "🍎 🍎 🍌 🍎 🍎 🍌 🍎 🍎 ?",
     answer: "🍌",
     distractors: ["🍇", "🍕", "🥕"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "다음에 올 것은?",
     display: "1 3 5 7 ?",
     answer: "9",
     distractors: ["8", "10", "6"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "다음에 올 것은?",
     display: "🌱 🌿 🌳 🌱 🌿 ?",
     answer: "🌳",
     distractors: ["🍃", "🌸", "🪵"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "다음에 올 것은?",
     display: "5 10 15 20 ?",
     answer: "25",
     distractors: ["30", "24", "21"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "어울리지 않는 하나는?",
     answer: "다람쥐",
     distractors: ["까치", "비둘기", "참새"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "어울리지 않는 하나는?",
     answer: "아침",
     distractors: ["여름", "겨울", "가을"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "어울리지 않는 하나는?",
     answer: "무",
     distractors: ["사과", "배", "감"],
   },
   {
-    level: 8,
+    level: "normal",
     prompt: "어울리지 않는 하나는?",
     answer: "주말",
     distractors: ["월요일", "화요일", "수요일"],
+  },
+  // ----- hard: growth patterns + knowledge-based odd-one-out -----
+  {
+    level: "hard",
+    prompt: "다음에 올 것은?",
+    display: "2 4 8 16 ?",
+    answer: "32",
+    distractors: ["24", "20", "18"],
+  },
+  {
+    level: "hard",
+    prompt: "다음에 올 것은?",
+    display: "1 4 9 16 ?",
+    answer: "25",
+    distractors: ["20", "24", "17"],
+  },
+  {
+    level: "hard",
+    prompt: "다음에 올 것은?",
+    display: "🌑 🌘 🌗 🌖 ?",
+    answer: "🌕",
+    distractors: ["⭐", "☄️", "🌈"],
+  },
+  {
+    level: "hard",
+    prompt: "다음에 올 것은?",
+    display: "1 3 6 10 ?",
+    answer: "15",
+    distractors: ["12", "13", "20"],
+  },
+  {
+    level: "hard",
+    prompt: "어울리지 않는 하나는?",
+    answer: "거미",
+    distractors: ["개미", "벌", "나비"],
+  },
+  {
+    level: "hard",
+    prompt: "어울리지 않는 하나는?",
+    answer: "달",
+    distractors: ["지구", "화성", "금성"],
+  },
+  {
+    level: "hard",
+    prompt: "어울리지 않는 하나는?",
+    answer: "소금",
+    distractors: ["얼음", "물", "수증기"],
+  },
+  {
+    level: "hard",
+    prompt: "어울리지 않는 하나는?",
+    answer: "4월",
+    distractors: ["1월", "3월", "5월"],
   },
 ];
 
@@ -188,17 +247,21 @@ export const MEMORY_FLASH_POOL: string[] = [
   "🐶", "🐱", "🐰", "🦁", "🐸", "🐵", "🦊", "⭐", "🌙", "🎈",
 ];
 
-const FLASH_ITEMS: Record<CampingAge, number> = { 6: 4, 8: 6 };
-const FLASH_MS: Record<CampingAge, number> = { 6: 4000, 8: 5000 };
+const FLASH_ITEMS: Record<CampingLevel, number> = { easy: 4, normal: 6, hard: 8 };
+const FLASH_MS: Record<CampingLevel, number> = {
+  easy: 4000,
+  normal: 5000,
+  hard: 6000,
+};
 
 type MemoryVariant = "absent" | "present";
 
 function memoryRound(
   rng: () => number,
-  age: CampingAge,
+  level: CampingLevel,
   variant: MemoryVariant,
 ): CampingRound {
-  const n = FLASH_ITEMS[age];
+  const n = FLASH_ITEMS[level];
   if (variant === "absent") {
     // n flashed + 1 hidden answer; options mix the answer with flashed items
     const picked = shuffleWith(MEMORY_FLASH_POOL, rng).slice(0, n + 1);
@@ -209,7 +272,7 @@ function memoryRound(
       prompt: "방금 없었던 것은?",
       answer,
       options: shuffleWith([answer, ...items.slice(0, 3)], rng),
-      flash: { items, ms: FLASH_MS[age] },
+      flash: { items, ms: FLASH_MS[level] },
     };
   }
   // n flashed; the answer is one of them, the rest are fresh distractors
@@ -222,7 +285,7 @@ function memoryRound(
     prompt: "방금 있었던 것은?",
     answer,
     options: shuffleWith([answer, ...distractors], rng),
-    flash: { items, ms: FLASH_MS[age] },
+    flash: { items, ms: FLASH_MS[level] },
   };
 }
 
@@ -239,28 +302,26 @@ function numericOptions(
   return shuffleWith([answer, ...picked], rng).map(String);
 }
 
+/** Operand ranges and the guaranteed multiplication table per level:
+ *  easy ≤10 (no ×), normal ≤50 with × 2–5, hard ≤100 with × 2–9. */
+const MATH_RANGE: Record<CampingLevel, number> = { easy: 10, normal: 50, hard: 100 };
+const MATH_TABLES: Record<CampingLevel, [number, number]> = {
+  easy: [0, 0],
+  normal: [2, 5],
+  hard: [2, 9],
+};
+
 function mathRound(
   rng: () => number,
-  age: CampingAge,
+  level: CampingLevel,
   occurrence: number,
 ): CampingRound {
+  const range = MATH_RANGE[level];
   const int = (max: number) => 1 + Math.floor(rng() * max);
-  // 6세: add/sub with the ANSWER capped at 10. 8세 occurrence 0: add/sub
-  // within 50; occurrence 1: multiplication tables 2–5 (guaranteed ×).
-  if (age === 6 && occurrence === 1) {
-    const hi = 2 + Math.floor(rng() * 9); // 2..10
-    const lo = 1 + Math.floor(rng() * (hi - 1));
-    const answer = hi - lo;
-    return {
-      category: "math",
-      prompt: "얼마일까요?",
-      display: `${hi} − ${lo} = ?`,
-      answer: String(answer),
-      options: numericOptions(answer, [answer + 1, answer + 2, answer + 3], rng),
-    };
-  }
-  if (age === 8 && occurrence === 1) {
-    const t = 2 + Math.floor(rng() * 4); // 2..5
+  // occurrence 1 always multiplies (easy stays add/sub at ≤10)
+  if (occurrence === 1 && level !== "easy") {
+    const [tMin, tMax] = MATH_TABLES[level];
+    const t = tMin + Math.floor(rng() * (tMax - tMin + 1));
     const b = 2 + Math.floor(rng() * 8); // 2..9
     const answer = t * b;
     return {
@@ -275,9 +336,20 @@ function mathRound(
       ),
     };
   }
-  // shared add path (6세 occurrence 0 / 8세 occurrence 0 with wider range)
-  if (age === 6 || rng() < 0.5) {
-    if (age === 6) {
+  if (level === "easy" && occurrence === 1) {
+    const hi = 2 + Math.floor(rng() * 9); // 2..10
+    const lo = 1 + Math.floor(rng() * (hi - 1));
+    const answer = hi - lo;
+    return {
+      category: "math",
+      prompt: "얼마일까요?",
+      display: `${hi} − ${lo} = ?`,
+      answer: String(answer),
+      options: numericOptions(answer, [answer + 1, answer + 2, answer + 3], rng),
+    };
+  }
+  if (rng() < 0.5) {
+    if (level === "easy") {
       const a = 1 + Math.floor(rng() * 9); // 1..9
       const b = 1 + Math.floor(rng() * (10 - a)); // keeps a + b ≤ 10
       const answer = a + b;
@@ -289,8 +361,8 @@ function mathRound(
         options: numericOptions(answer, [answer + 1, answer + 2, answer + 3], rng),
       };
     }
-    const a = 1 + Math.floor(rng() * 49);
-    const b = 1 + Math.floor(rng() * 49);
+    const a = 1 + Math.floor(rng() * (range - 1));
+    const b = 1 + Math.floor(rng() * (range - 1));
     const answer = a + b;
     return {
       category: "math",
@@ -304,8 +376,8 @@ function mathRound(
       ),
     };
   }
-  // 8세 subtraction within 50, never negative
-  const hi = 10 + Math.floor(rng() * 41); // 10..50
+  // subtraction within range, never negative
+  const hi = Math.max(2, Math.floor(range / 4)) + Math.floor(rng() * (range - Math.max(2, Math.floor(range / 4))));
   const lo = 1 + Math.floor(rng() * (hi - 1));
   const answer = hi - lo;
   return {
@@ -323,8 +395,10 @@ function mathRound(
 
 // ---------- word & logic rounds ----------
 
-function wordTier(age: CampingAge): DictationTier {
-  return age === 6 ? "words" : "sentences";
+function wordTier(level: CampingLevel): DictationTier {
+  if (level === "easy") return "words";
+  if (level === "normal") return "sentences";
+  return "advanced";
 }
 
 function logicRound(puzzle: LogicPuzzle, rng: () => number): CampingRound {
@@ -354,11 +428,11 @@ export function buildCampingGame(
   return players.map((player, i) => {
     const rng = mulberry32(Math.imul(i + 1, 2654435761) ^ seed);
     const logicBank = shuffleWith(
-      LOGIC_BANK.filter((p) => p.level === player.age),
+      LOGIC_BANK.filter((p) => p.level === player.level),
       rng,
     );
     const words = buildDictationQuestions(
-      wordTier(player.age),
+      wordTier(player.level),
       ROUNDS_PER_CATEGORY,
       rng,
     );
@@ -372,11 +446,11 @@ export function buildCampingGame(
       const occurrence = seen[category]++;
       switch (category) {
         case "memory":
-          return memoryRound(rng, player.age, occurrence === 0 ? "absent" : "present");
+          return memoryRound(rng, player.level, occurrence === 0 ? "absent" : "present");
         case "logic":
           return logicRound(logicBank[occurrence], rng);
         case "math":
-          return mathRound(rng, player.age, occurrence);
+          return mathRound(rng, player.level, occurrence);
         case "word": {
           const q = words[occurrence];
           return {
@@ -395,9 +469,9 @@ export function buildCampingGame(
 
 // ---------- difficulty & ranking ----------
 
-/** Quantified difficulty badge: 6세 22 (🌱), 8세 34 (🔥). */
-export function campingDifficulty(age: CampingAge): number {
-  return age === 6 ? 22 : 34;
+/** Quantified difficulty badge: easy 22 (🌱), normal 34 (🔥), hard 46 (⚡). */
+export function campingDifficulty(level: CampingLevel): number {
+  return level === "easy" ? 22 : level === "normal" ? 34 : 46;
 }
 
 export interface CampingScore {
