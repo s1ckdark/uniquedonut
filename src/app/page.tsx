@@ -50,31 +50,34 @@ export default function Home() {
               boxShadow: "0 0 30px rgba(255,107,157,0.4), 0 8px 32px rgba(0,0,0,0.3)",
             }}
           >
-            <span>Enter the Shop</span>
+            <span>Shop</span>
             <span className="text-3xl group-hover:animate-bounce">🍩</span>
           </Link>
           <Link
-            href="/ebs-documentaries"
-            className="group inline-flex items-center gap-3 px-8 py-4 rounded-full text-lg font-black uppercase tracking-wider transition-all duration-300 hover:scale-105"
+            href="/gino"
+            className="group relative inline-flex items-center gap-3 px-10 py-5 rounded-full text-2xl font-black uppercase tracking-wider transition-all duration-300 hover:scale-110"
             style={{
               fontFamily: "'Fredoka', cursive",
-              background: "#6BCB7725",
-              color: "#6BCB77",
-              border: "1px solid #6BCB7770",
-              boxShadow: "0 0 24px rgba(107,203,119,0.22)",
+              background: "linear-gradient(135deg, #FF8C42, #FFD93D)",
+              color: "#1A0A2E",
+              boxShadow: "0 0 30px rgba(244,162,97,0.4), 0 8px 32px rgba(0,0,0,0.3)",
             }}
           >
-            <span>EBS Docu Shelf</span>
-            <span className="text-2xl group-hover:animate-bounce">📺</span>
+            <span>Gino</span>
+            <span className="text-3xl group-hover:animate-bounce">🎓</span>
           </Link>
         </div>
 
         {/* Decorative bar */}
         <div className="mt-16 flex items-center gap-3 opacity-50">
           <div className="h-0.5 w-12 rounded-full bg-[#FF6B9D]" />
-          <span className="text-sm" style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}>
-            25 flavors available
-          </span>
+          <Link
+            href="/ebs-documentaries"
+            className="text-sm transition hover:opacity-100"
+            style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}
+          >
+            📺 EBS Docu Shelf
+          </Link>
           <div className="h-0.5 w-12 rounded-full bg-[#FFD93D]" />
         </div>
       </main>
