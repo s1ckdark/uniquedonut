@@ -252,6 +252,16 @@ const allDonuts: Donut[] = [
     price: "$8.00",
     color: "#2fae9d",
   },
+  {
+    slug: "pension-paradox",
+    name: "Pension Paradox",
+    description: "1천만원 내고 1억 받은 사람들",
+    route: "/pension",
+    category: "Chef's Special",
+    tags: ["Data", "Infographic"],
+    price: "$7.50",
+    color: "#4D96FF",
+  },
 ];
 
 export const categories: Category[] = [
