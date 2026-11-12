@@ -66,6 +66,22 @@ export default function Home() {
             <span>Gino</span>
             <span className="text-3xl group-hover:animate-bounce">🎓</span>
           </Link>
+          <Link
+            href="/usage"
+            className="group relative inline-flex items-center gap-3 px-8 py-5 rounded-full text-xl font-bold tracking-tight transition-all duration-300 hover:scale-110"
+            style={{
+              fontFamily: "var(--font-geist-mono, ui-monospace, monospace)",
+              background: "#0A0A0A",
+              color: "#FEFEFE",
+              border: "1px solid #3F3F46",
+              boxShadow: "0 0 24px rgba(255,255,255,0.08), 0 8px 32px rgba(0,0,0,0.5)",
+            }}
+          >
+            <span className="text-[#A1A1AA]">&gt;_</span>
+            <span>
+              TOKENHOLIC<span className="animate-cursor ml-1 text-[#FEFEFE]">▊</span>
+            </span>
+          </Link>
         </div>
 
         {/* Decorative bar */}

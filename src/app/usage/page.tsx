@@ -10,13 +10,13 @@ import {
   calendarWeeks,
   fmtTokens,
   fmtUsd,
-  providerColor,
   type DailyReport,
   type RankedParticipant,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { CountUp, GrowBar, Reveal, useInView } from "@/components/ScrollFX";
 
+const MONO = "var(--font-geist-mono, ui-monospace, SFMono-Regular, monospace)";
 const DOW_LABELS = ["", "월", "화", "수", "목", "금", "토", "일"];
 const TREND_DAYS = 90;
 const GRANULARITIES = [
@@ -27,35 +27,13 @@ const GRANULARITIES = [
 ] as const;
 type Granularity = (typeof GRANULARITIES)[number]["key"];
 
-/** Vertical mini bar row (hour view) that grows on scroll-in. */
-function VerticalBars({
-  values,
-  labels,
-  color,
-}: {
-  values: number[];
-  labels: string[];
-  color: string;
-}) {
-  const { ref, inView } = useInView<HTMLDivElement>(0.3);
-  const max = Math.max(...values, 1);
-  return (
-    <div ref={ref} className="mt-4 flex h-44 items-end gap-1">
-      {values.map((v, i) => (
-        <div
-          key={i}
-          title={labels[i]}
-          className="flex-1 rounded-t-[3px] transition-[height] duration-700 ease-out"
-          style={{
-            height: inView ? `${Math.max(2, (v / max) * 100)}%` : "0%",
-            background: color,
-            transitionDelay: `${i * 25}ms`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+const HEAT_BG = [
+  "bg-white/[0.06]",
+  "bg-white/25",
+  "bg-white/45",
+  "bg-white/65",
+  "bg-white/90",
+];
 
 /** Log-ish color bins for heatmap cells (0..4). */
 function heatBin(tokens: number, max: number): number {
@@ -67,19 +45,37 @@ function heatBin(tokens: number, max: number): number {
   return 1;
 }
 
-const HEAT_BG = [
-  "bg-white/[0.06]",
-  "bg-[#4D96FF]/25",
-  "bg-[#4D96FF]/50",
-  "bg-[#4D96FF]/75",
-  "bg-[#4D96FF]",
-];
+/** Vertical mini bar row (hour view) that grows on scroll-in. */
+function VerticalBars({
+  values,
+  labels,
+}: {
+  values: number[];
+  labels: string[];
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>(0.3);
+  const max = Math.max(...values, 1);
+  return (
+    <div ref={ref} className="mt-4 flex h-44 items-end gap-1">
+      {values.map((v, i) => (
+        <div
+          key={i}
+          title={labels[i]}
+          className="flex-1 rounded-t-[2px] bg-white/80 transition-[height] duration-700 ease-out"
+          style={{
+            height: inView ? `${Math.max(2, (v / max) * 100)}%` : "0%",
+            transitionDelay: `${i * 25}ms`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 /** Last N days area chart that draws itself on scroll. */
 function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) {
   const [drawn, setDrawn] = useState(false);
   useEffect(() => {
-    // draw on the next frame after mount (Reveal parent gates visibility)
     const t = setTimeout(() => setDrawn(true), 150);
     return () => clearTimeout(t);
   }, []);
@@ -105,15 +101,15 @@ function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) 
     >
       <path
         d={area}
-        fill="#4D96FF"
-        opacity={drawn ? 0.18 : 0}
+        fill="#FFFFFF"
+        opacity={drawn ? 0.12 : 0}
         style={{ transition: "opacity 1.2s ease 0.6s" }}
       />
       <path
         d={line}
         fill="none"
-        stroke="#4D96FF"
-        strokeWidth={2.5}
+        stroke="#FEFEFE"
+        strokeWidth={2}
         strokeLinejoin="round"
         strokeLinecap="round"
         style={{
@@ -123,6 +119,18 @@ function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) 
         }}
       />
     </svg>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2
+      className="text-lg font-bold tracking-tight text-white"
+      style={{ fontFamily: MONO }}
+    >
+      <span className="mr-2 text-neutral-600">#</span>
+      {children}
+    </h2>
   );
 }
 
@@ -216,57 +224,61 @@ export default function UsagePage() {
     : "";
 
   return (
-    <div className="min-h-screen bg-[#12081F] text-[#FEFEFE]">
-      <main className="mx-auto max-w-4xl px-4 py-10">
+    <div className="min-h-screen bg-[#0A0A0A] text-neutral-200">
+      <main className="mx-auto max-w-4xl px-4 py-10" style={{ fontFamily: MONO }}>
         <div className="mb-10 flex items-center justify-between">
           <Link
-            href="/shop"
-            className="rounded-full bg-[#4D96FF]/15 px-4 py-2 text-sm font-bold text-[#4D96FF] transition hover:scale-105"
+            href="/"
+            className="rounded-full border border-neutral-800 px-4 py-2 text-xs font-bold text-neutral-400 transition hover:border-neutral-500 hover:text-white"
           >
-            ← Shop
+            ← cd ~
           </Link>
-          <span className="rounded-full border border-[#FFD93D]/40 bg-[#FFD93D]/10 px-3 py-1 text-xs font-bold text-[#FFD93D]">
-            $ API 환산 추정
+          <span className="rounded-full border border-neutral-800 px-3 py-1 text-[10px] font-bold text-neutral-500">
+            $ = API 환산 추정
           </span>
         </div>
 
-        <header className="mb-12 text-center">
-          <p className="text-5xl">⚡</p>
-          <h1
-            className="mt-4 text-4xl font-black md:text-5xl"
-            style={{
-              fontFamily: "'Bungee Shade', cursive",
-              color: "#4D96FF",
-              textShadow: "0 0 20px rgba(77,150,255,0.5), 3px 3px 0px #FFD93D",
-            }}
-          >
-            TOKEN BOARD
-          </h1>
-          <p
-            className="mt-3 text-lg font-bold"
-            style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
-          >
-            내 AI 서비스 사용량 리포트
-          </p>
+        {/* terminal window header */}
+        <header className="overflow-hidden rounded-xl border border-neutral-800 bg-[#0D0D0D]">
+          <div className="flex items-center gap-2 border-b border-neutral-800 px-4 py-2.5">
+            <span className="h-3 w-3 rounded-full bg-neutral-700" />
+            <span className="h-3 w-3 rounded-full bg-neutral-700" />
+            <span className="h-3 w-3 rounded-full bg-neutral-700" />
+            <span className="ml-3 text-[11px] text-neutral-600">
+              tokenholic — zsh — 80×24
+            </span>
+          </div>
+          <div className="px-6 py-8 text-center">
+            <p className="text-xs text-neutral-600">$ whoami --tokens --flex</p>
+            <h1 className="mt-3 text-4xl font-black tracking-tight text-white md:text-5xl">
+              TOKENHOLIC<span className="animate-cursor ml-1">▊</span>
+            </h1>
+            <p className="mt-3 text-sm font-bold text-neutral-400 md:text-base">
+              너, 토큰 얼마나 태웠어? 개발자 AI 사용량 랭킹전
+            </p>
+          </div>
         </header>
 
         {state === "loading" && (
-          <p className="text-center text-white/50">불러오는 중…</p>
+          <p className="mt-12 text-center text-sm text-neutral-600">
+            $ loading<span className="animate-cursor">▊</span>
+          </p>
         )}
 
         {state === "error" && (
-          <p className="text-center text-[#FF6B9D]">불러오기 실패: {error}</p>
+          <p className="mt-12 text-center text-sm text-red-400">
+            fetch failed: {error}
+          </p>
         )}
 
         {state === "empty" && (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-10 text-center">
-            <p className="text-5xl">🛰️</p>
-            <p className="mt-4 text-lg font-bold text-white/80">
+          <div className="mt-12 rounded-xl border border-dashed border-neutral-800 p-10 text-center">
+            <p className="text-4xl">🛰️</p>
+            <p className="mt-4 text-sm font-bold text-neutral-300">
               아직 첫 스냅샷이 도착하지 않았어요
             </p>
-            <p className="mt-2 text-sm text-white/50">
-              매일 자정(한국 시간) 토큰 사용량이 자동으로 올라옵니다 — racknerd
-              적재 작업이 한 번 실행되면 차트가 채워집니다
+            <p className="mt-2 text-xs text-neutral-600">
+              매일 자정(한국 시간) 사용량이 자동으로 올라옵니다
             </p>
           </div>
         )}
@@ -275,39 +287,38 @@ export default function UsagePage() {
           <>
             {/* ---------- sync header + totals ---------- */}
             <Reveal>
-              <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-white/50">
-                  <span className="font-mono">
+              <section className="mt-8 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-neutral-600">
+                  <span>
                     마지막 갱신 {syncedKst} · {snapshot.rows.toLocaleString("ko-KR")}행
                     · 단가 기준 {snapshot.pricingAsOf}
                   </span>
                   {snapshot.partial && (
-                    <span className="rounded-full bg-[#FF8C42]/15 px-3 py-1 font-bold text-[#FF8C42]">
+                    <span className="rounded-full border border-neutral-700 px-3 py-1 font-bold text-neutral-400">
                       ⚠ 일부 기기 미수집
                     </span>
                   )}
                 </div>
                 <div className="mt-6 grid grid-cols-2 gap-6 text-center">
                   <div>
-                    <p className="text-sm font-bold text-white/50">총 토큰</p>
-                    <p className="mt-1 text-4xl font-black text-[#4D96FF]">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      total tokens
+                    </p>
+                    <p className="mt-1 text-3xl font-black text-white">
                       <CountUp to={snapshot.totalTokens} format={fmtTokens} />
                     </p>
-                    <p className="mt-1 font-mono text-xs text-white/40">
+                    <p className="mt-1 text-[10px] text-neutral-600">
                       {snapshot.firstDay} ~ {snapshot.lastDay}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white/50">
-                      추정 비용 (API 환산)
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      est. spend (api환산)
                     </p>
-                    <p className="mt-1 text-4xl font-black text-[#FFD93D]">
-                      <CountUp
-                        to={snapshot.totalUsd}
-                        format={(n) => fmtUsd(n)}
-                      />
+                    <p className="mt-1 text-3xl font-black text-white">
+                      <CountUp to={snapshot.totalUsd} format={(n) => fmtUsd(n)} />
                     </p>
-                    <p className="mt-1 font-mono text-xs text-white/40">
+                    <p className="mt-1 text-[10px] text-neutral-600">
                       실제 청구액이 아닌 정가 환산 추정치
                     </p>
                   </div>
@@ -315,28 +326,24 @@ export default function UsagePage() {
               </section>
             </Reveal>
 
-            {/* ---------- daily report (00:00 자동 작성) ---------- */}
+            {/* ---------- daily report ---------- */}
             {report && (
               <Reveal>
-                <section className="mt-6 rounded-3xl border border-[#FFD93D]/25 bg-[#FFD93D]/[0.07] p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-black tracking-widest text-[#FFD93D]">
-                      🪪 일일 리포트 · {report.day}
-                    </p>
-                    <span className="text-[10px] text-white/40">
-                      매일 00:00 자정 적재와 함께 자동 작성
-                    </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
+                <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                    $ cat daily-report.json
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
                     <p className="text-2xl font-black text-white">
-                      {fmtTokens(report.tokens)} 토큰
+                      {fmtTokens(report.tokens)}
+                      <span className="ml-2 text-sm text-neutral-500">tokens</span>
                       {report.deltaPct !== null && (
                         <span
-                          className="ml-2 rounded-full px-2 py-0.5 align-middle text-sm font-bold"
+                          className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-bold"
                           style={{
-                            background:
-                              report.deltaPct >= 0 ? "#FF8C4222" : "#6BCB7722",
-                            color: report.deltaPct >= 0 ? "#FF8C42" : "#6BCB77",
+                            borderColor:
+                              report.deltaPct >= 0 ? "#52525B" : "#3F3F46",
+                            color: report.deltaPct >= 0 ? "#E4E4E7" : "#A1A1AA",
                           }}
                         >
                           {report.deltaPct >= 0 ? "▲" : "▼"}{" "}
@@ -344,21 +351,18 @@ export default function UsagePage() {
                         </span>
                       )}
                     </p>
-                    <p className="font-mono text-sm text-white/60">
-                      {fmtUsd(report.usd)}
+                    <p className="text-sm text-neutral-400">
+                      {report.day} · {fmtUsd(report.usd)}
                       {!report.costComplete && " (부분 합계)"}
                     </p>
                     {report.prev7Avg !== null && (
-                      <p className="font-mono text-xs text-white/40">
+                      <p className="text-xs text-neutral-600">
                         직전 7일 평균 {fmtTokens(report.prev7Avg)}
                       </p>
                     )}
                     {report.topModel && (
-                      <p className="text-sm text-white/70">
-                        최근 30일 최다 모델{" "}
-                        <b style={{ color: providerColor(report.topModel.provider) }}>
-                          {report.topModel.model}
-                        </b>
+                      <p className="text-sm text-neutral-300">
+                        mvp: <b className="text-white">{report.topModel.model}</b>
                       </p>
                     )}
                   </div>
@@ -369,50 +373,45 @@ export default function UsagePage() {
             {/* ---------- league ranking ---------- */}
             {league.length > 1 && (
               <Reveal>
-                <section className="mt-6 rounded-3xl border border-[#9775FA]/25 bg-[#9775FA]/[0.07] p-6">
-                  <p className="text-sm font-black tracking-widest text-[#9775FA]">
-                    🏆 리그 랭킹 · 최근 30일
+                <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                    $ rank --period=30d --sort=usd
                   </p>
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-2">
                     {league.map((p) => (
                       <div
                         key={p.name}
-                        className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border p-3 ${
+                        className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border px-4 py-3 ${
                           p.rank === 1
-                            ? "border-[#FFD93D]/50 bg-[#FFD93D]/10"
-                            : "border-white/10 bg-black/30"
+                            ? "border-white/60 bg-white/[0.06]"
+                            : "border-neutral-800 bg-black/40"
                         }`}
                       >
-                        <p className="text-lg font-black text-white">
-                          <span className="mr-2">
-                            {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : p.rank === 3 ? "🥉" : `${p.rank}위`}
+                        <p className="text-base font-bold text-white">
+                          <span className="mr-3 text-neutral-500">
+                            #{p.rank}
                           </span>
                           {p.name}
                           {p.delta7dPct !== null && (
-                            <span
-                              className="ml-2 rounded-full px-2 py-0.5 align-middle text-xs font-bold"
-                              style={{
-                                background: p.delta7dPct >= 0 ? "#FF8C4222" : "#6BCB7722",
-                                color: p.delta7dPct >= 0 ? "#FF8C42" : "#6BCB77",
-                              }}
-                            >
-                              {p.delta7dPct >= 0 ? "▲" : "▼"} {Math.abs(p.delta7dPct).toFixed(0)}%
+                            <span className="ml-2 text-xs font-bold text-neutral-500">
+                              {p.delta7dPct >= 0 ? "▲" : "▼"}{" "}
+                              {Math.abs(p.delta7dPct).toFixed(0)}%
                             </span>
                           )}
                         </p>
-                        <p className="font-mono text-sm text-white/70">
-                          <b className="text-[#FFD93D]">{fmtUsd(p.usd30d)}</b>
-                          <span className="mx-2 text-white/30">|</span>
-                          {fmtTokens(p.tokens30d)} 토큰
-                          <span className="mx-2 text-white/30">|</span>
-                          <span className="text-white/40">{p.lastDay} 갱신</span>
+                        <p className="text-sm text-neutral-400">
+                          <b className="text-white">{fmtUsd(p.usd30d)}</b>
+                          <span className="mx-2 text-neutral-700">·</span>
+                          {fmtTokens(p.tokens30d)} tk
+                          <span className="mx-2 text-neutral-700">·</span>
+                          <span className="text-neutral-600">{p.lastDay}</span>
                         </p>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-3 text-[11px] text-white/40">
-                    공정 축은 환산 비용($) — 제공자별 캐시·집계 차이 때문에 원시 토큰은
-                    참고용입니다.
+                  <p className="mt-3 text-[10px] text-neutral-600">
+                    공정 축은 환산 비용($) — 캐시·집계 편차 때문에 원시 토큰은
+                    참고용
                   </p>
                 </section>
               </Reveal>
@@ -420,15 +419,10 @@ export default function UsagePage() {
 
             {/* ---------- calendar heatmap ---------- */}
             <Reveal>
-              <section className="mt-16">
-                <h2
-                  className="text-2xl font-black"
-                  style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}
-                >
-                  사용 잔디 🌱
-                </h2>
-                <p className="mt-1 text-sm text-white/50">
-                  하루 토큰량 — 진할수록 많이 사용 (클린 커서에 날짜 표시)
+              <section className="mt-10">
+                <SectionTitle>사용 잔디 contribution-graph</SectionTitle>
+                <p className="mt-1 text-xs text-neutral-600">
+                  하루 토큰량 — 밝을수록 많이 사용
                 </p>
                 <div className="mt-6 overflow-x-auto pb-2">
                   <div className="flex gap-[3px]">
@@ -457,24 +451,19 @@ export default function UsagePage() {
 
             {/* ---------- trend with granularity toggle ---------- */}
             <Reveal>
-              <section className="mt-16">
+              <section className="mt-10">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2
-                    className="text-2xl font-black"
-                    style={{ fontFamily: "'Fredoka', cursive", color: "#4D96FF" }}
-                  >
-                    사용 추이 📈
-                  </h2>
-                  <div className="flex gap-1 rounded-full bg-white/5 p-1">
+                  <SectionTitle>사용 추이 timeseries</SectionTitle>
+                  <div className="flex gap-1 rounded-full border border-neutral-800 p-1">
                     {GRANULARITIES.map((g) => (
                       <button
                         key={g.key}
                         type="button"
                         onClick={() => setGran(g.key)}
-                        className={`rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${
+                        className={`rounded-full px-3 py-1 text-[11px] font-bold transition cursor-pointer ${
                           gran === g.key
-                            ? "bg-[#4D96FF] text-black"
-                            : "text-white/60 hover:text-white"
+                            ? "bg-white text-black"
+                            : "text-neutral-500 hover:text-white"
                         }`}
                       >
                         {g.label}
@@ -485,31 +474,30 @@ export default function UsagePage() {
 
                 {gran === "hour" && (
                   <>
-                    <p className="mt-1 text-sm text-white/50">
+                    <p className="mt-1 text-xs text-neutral-600">
                       시간대별 총 사용량 (전체 기간 합산 · Z.AI 제외)
                     </p>
                     <VerticalBars
                       values={hourBars.map((h) => h.tokens)}
                       labels={hourBars.map((h) => `${h.hour}시 · ${fmtTokens(h.tokens)} 토큰`)}
-                      color="#4D96FF"
                     />
-                    <div className="mt-1 flex justify-between font-mono text-[10px] text-white/30">
-                      <span>0시</span>
-                      <span>12시</span>
-                      <span>23시</span>
+                    <div className="mt-1 flex justify-between text-[10px] text-neutral-600">
+                      <span>00h</span>
+                      <span>12h</span>
+                      <span>23h</span>
                     </div>
                   </>
                 )}
 
                 {gran === "day" && (
                   <>
-                    <p className="mt-1 text-sm text-white/50">
-                      최근 {TREND_DAYS}일 (전체 기간은 잔디 캘린더에서)
+                    <p className="mt-1 text-xs text-neutral-600">
+                      최근 {TREND_DAYS}일 (전체 기간은 잔디 그래프에서)
                     </p>
                     <TrendChart days={trendDays} />
-                    <div className="mt-1 flex justify-between font-mono text-xs text-white/40">
+                    <div className="mt-1 flex justify-between text-[10px] text-neutral-600">
                       <span>{trendDays[0]?.day}</span>
-                      <span>최고 {fmtTokens(maxDaily)} /일</span>
+                      <span>peak {fmtTokens(maxDaily)} /일</span>
                       <span>{trendDays[trendDays.length - 1]?.day}</span>
                     </div>
                   </>
@@ -517,18 +505,19 @@ export default function UsagePage() {
 
                 {gran === "week" && (
                   <>
-                    <p className="mt-1 text-sm text-white/50">
-                      주간별 합계 — 최근 {weekBars.length}주 (월요일 시작)
+                    <p className="mt-1 text-xs text-neutral-600">
+                      주간별 합계 — 최근 {weekBars.length}주
                     </p>
                     <div className="mt-6 space-y-4">
                       {weekBars.map((w, i) => (
                         <GrowBar
                           key={w.weekStart}
                           pct={(w.tokens / Math.max(...weekBars.map((x) => x.tokens), 1)) * 100}
-                          color="#4D96FF"
-                          heightClass="h-5"
+                          color="#E4E4E7"
+                          trackClass="bg-white/5"
+                          heightClass="h-4"
                           delay={i * 50}
-                          label={`${w.weekStart.slice(5).replace("-", "/")}주`}
+                          label={w.weekStart}
                           valueLabel={`${fmtTokens(w.tokens)} · ${fmtUsd(w.usd)}`}
                         />
                       ))}
@@ -538,7 +527,7 @@ export default function UsagePage() {
 
                 {gran === "month" && (
                   <>
-                    <p className="mt-1 text-sm text-white/50">
+                    <p className="mt-1 text-xs text-neutral-600">
                       월별 합계 — 전체 {monthBars.length}개월
                     </p>
                     <div className="mt-6 space-y-4">
@@ -546,8 +535,9 @@ export default function UsagePage() {
                         <GrowBar
                           key={m.month}
                           pct={(m.tokens / Math.max(...monthBars.map((x) => x.tokens), 1)) * 100}
-                          color="#9775FA"
-                          heightClass="h-5"
+                          color="#A1A1AA"
+                          trackClass="bg-white/5"
+                          heightClass="h-4"
                           delay={i * 50}
                           label={m.month}
                           valueLabel={`${fmtTokens(m.tokens)} · ${fmtUsd(m.usd)}`}
@@ -559,41 +549,11 @@ export default function UsagePage() {
               </section>
             </Reveal>
 
-            {/* ---------- providers (30d) ---------- */}
-            <Reveal>
-              <section className="mt-16">
-                <h2
-                  className="text-2xl font-black"
-                  style={{ fontFamily: "'Fredoka', cursive", color: "#FF6B9D" }}
-                >
-                  최근 30일 제공자별 🤖
-                </h2>
-                <div className="mt-6 space-y-6">
-                  {snapshot.providers.map((p, i) => (
-                    <GrowBar
-                      key={p.provider}
-                      pct={(p.tokens / (providerTotal || 1)) * 100}
-                      color={providerColor(p.provider)}
-                      heightClass="h-7"
-                      delay={i * 80}
-                      label={p.provider}
-                      valueLabel={`${fmtTokens(p.tokens)} (${((p.tokens / (providerTotal || 1)) * 100).toFixed(1)}%) · ${fmtUsd(p.usd)}`}
-                    />
-                  ))}
-                </div>
-              </section>
-            </Reveal>
-
             {/* ---------- weekday x hour heatmap ---------- */}
             <Reveal>
-              <section className="mt-16">
-                <h2
-                  className="text-2xl font-black"
-                  style={{ fontFamily: "'Fredoka', cursive", color: "#FFD93D" }}
-                >
-                  언제 제일 쓸까? ⏰
-                </h2>
-                <p className="mt-1 text-sm text-white/50">
+              <section className="mt-10">
+                <SectionTitle>언제 제일 쓸까 heat-map</SectionTitle>
+                <p className="mt-1 text-xs text-neutral-600">
                   요일×시간 사용량 (Z.AI는 시간 정보가 없어 제외)
                 </p>
                 <div className="mt-6 overflow-x-auto pb-2">
@@ -602,7 +562,7 @@ export default function UsagePage() {
                       {Array.from({ length: 24 }, (_, h) => (
                         <span
                           key={h}
-                          className="w-[22px] text-center font-mono text-[9px] text-white/30"
+                          className="w-[22px] text-center text-[9px] text-neutral-600"
                         >
                           {h % 3 === 0 ? h : ""}
                         </span>
@@ -610,7 +570,7 @@ export default function UsagePage() {
                     </div>
                     {[1, 2, 3, 4, 5, 6, 7].map((dow) => (
                       <div key={dow} className="mb-[3px] flex items-center gap-[3px]">
-                        <span className="w-8 font-mono text-[10px] text-white/40">
+                        <span className="w-8 text-[10px] text-neutral-600">
                           {DOW_LABELS[dow]}
                         </span>
                         {Array.from({ length: 24 }, (_, h) => {
@@ -633,20 +593,16 @@ export default function UsagePage() {
 
             {/* ---------- models ---------- */}
             <Reveal>
-              <section className="mt-16">
-                <h2
-                  className="text-2xl font-black"
-                  style={{ fontFamily: "'Fredoka', cursive", color: "#6BCB77" }}
-                >
-                  모델 랭킹 🏆
-                </h2>
-                <div className="mt-6 space-y-5">
+              <section className="mt-10">
+                <SectionTitle>모델 랭킹 top-models</SectionTitle>
+                <div className="mt-6 space-y-4">
                   {snapshot.models.map((m, i) => (
                     <GrowBar
                       key={`${m.provider}/${m.model}`}
                       pct={(m.tokens / maxModel) * 100}
-                      color={providerColor(m.provider)}
-                      heightClass="h-5"
+                      color="#E4E4E7"
+                      trackClass="bg-white/5"
+                      heightClass="h-4"
                       delay={i * 60}
                       label={m.model}
                       valueLabel={`${fmtTokens(m.tokens)} · ${fmtUsd(m.usd)}`}
@@ -656,22 +612,33 @@ export default function UsagePage() {
               </section>
             </Reveal>
 
+            {/* ---------- providers ---------- */}
+            <Reveal>
+              <section className="mt-10">
+                <SectionTitle>최근 30일 제공자별 providers</SectionTitle>
+                <div className="mt-6 space-y-5">
+                  {snapshot.providers.map((p, i) => (
+                    <GrowBar
+                      key={p.provider}
+                      pct={(p.tokens / (providerTotal || 1)) * 100}
+                      color="#A1A1AA"
+                      trackClass="bg-white/5"
+                      heightClass="h-5"
+                      delay={i * 80}
+                      label={p.provider}
+                      valueLabel={`${fmtTokens(p.tokens)} (${((p.tokens / (providerTotal || 1)) * 100).toFixed(1)}%) · ${fmtUsd(p.usd)}`}
+                    />
+                  ))}
+                </div>
+              </section>
+            </Reveal>
+
             {/* ---------- caveats ---------- */}
             <Reveal>
-              <footer className="mt-16 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-xs leading-relaxed text-white/40">
-                <p>
-                  · 금액은 구독 사용량을 API 정가로 환산한 추정치이며 단가 미공개
-                  모델이 포함된 날은 부분 합계입니다.
-                </p>
-                <p>· Grok(grok-4.7-build) 수치는 실제보다 약 8% 낮게 집계됩니다.</p>
-                <p>
-                  · 데이터 범위 {snapshot.firstDay}부터 — 초기 구간은 원본 로그가
-                  일부만 남아 듬성할 수 있습니다.
-                </p>
-                <p>
-                  · 집계에는 제공자·모델·토큰 수·추정 비용만 담겨 있고 세션·기기
-                  정보는 없습니다.
-                </p>
+              <footer className="mt-12 rounded-xl border border-neutral-900 p-5 text-[10px] leading-relaxed text-neutral-600">
+                <p>// 금액은 구독 사용량을 API 정가로 환산한 추정치 (단가 미공개 모델 포함 시 부분 합계)</p>
+                <p>// grok-4.7-build 수치는 실제보다 약 8% 낮게 집계</p>
+                <p>// 데이터 {snapshot.firstDay}~ — 초기 구간은 듬성할 수 있음 · 세션/기기 정보 미포함</p>
               </footer>
             </Reveal>
           </>
