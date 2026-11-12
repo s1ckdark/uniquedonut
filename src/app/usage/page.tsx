@@ -233,9 +233,18 @@ export default function UsagePage() {
           >
             ← cd ~
           </Link>
-          <span className="rounded-full border border-neutral-800 px-3 py-1 text-[10px] font-bold text-neutral-500">
-            $ = API 환산 추정
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-neutral-800 px-3 py-1 text-[10px] font-bold text-neutral-500 sm:inline">
+              $ = API 환산 추정
+            </span>
+            <a
+              href="/tokenholic-agent.mjs"
+              download
+              className="rounded-full border border-neutral-500 bg-white px-4 py-2 text-xs font-bold text-black transition hover:opacity-80"
+            >
+              ⬇ join.mjs — 참여하기
+            </a>
+          </div>
         </div>
 
         {/* terminal window header */}
@@ -633,9 +642,45 @@ export default function UsagePage() {
               </section>
             </Reveal>
 
+            {/* ---------- join guide ---------- */}
+            <Reveal>
+              <section className="mt-12 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                <SectionTitle>참여 방법 how-to-join</SectionTitle>
+                <div className="mt-4 space-y-2 text-xs leading-relaxed text-neutral-400">
+                  <p>
+                    <b className="text-white">1.</b> 운영자에게 참가자 키 받기 (초대제)
+                  </p>
+                  <p>
+                    <b className="text-white">2.</b> 에이전트 설치 — 우측 상단 ⬇ 버튼 또는:
+                  </p>
+                  <pre className="overflow-x-auto rounded-lg border border-neutral-800 bg-black/60 p-3 text-[11px] text-neutral-300">
+{`curl -fsSL ${typeof window !== "undefined" ? window.location.origin : "https://uniquedonut.s1ckdark.workers.dev"}/tokenholic-agent.mjs -o /tmp/tokenholic-agent.mjs
+node /tmp/tokenholic-agent.mjs install <참가자키>`}
+                  </pre>
+                  <p>
+                    <b className="text-white">3.</b> <code className="text-neutral-300">~/.tokenholic/collect.sh</code> 에
+                    아래 규격의 JSON을 stdout으로 출력하는 수집기 연결 (설치 시 스텁이 생성됨)
+                  </p>
+                  <pre className="overflow-x-auto rounded-lg border border-neutral-800 bg-black/60 p-3 text-[11px] text-neutral-500">
+{`{ "syncedAt": "YYYY-MM-DDTHH:MM:SS+09:00", "rows": n, "firstDay": "…", "lastDay": "…",
+  "partial": bool, "pricingAsOf": "…", "totalTokens": n, "totalUsd": n,
+  "daily":     [{ day, tokens, usd, costComplete }],        // ≤800행
+  "providers": [{ provider, tokens, usd }],                 // ≤20행 (30일)
+  "models":    [{ provider, model, tokens, usd }],          // ≤40행
+  "heatmap":   [{ dow: 1-7, hour: 0-23, tokens }] }         // 168행`}
+                  </pre>
+                  <p className="text-neutral-600">
+                    // 자동 실행: 매일 00:15 (참가자 현지 시각) · 점검:{" "}
+                    <code className="text-neutral-400">node ~/.tokenholic/agent.mjs doctor</code> ·
+                    탈퇴: <code className="text-neutral-400">uninstall</code>
+                  </p>
+                </div>
+              </section>
+            </Reveal>
+
             {/* ---------- caveats ---------- */}
             <Reveal>
-              <footer className="mt-12 rounded-xl border border-neutral-900 p-5 text-[10px] leading-relaxed text-neutral-600">
+              <footer className="mt-4 rounded-xl border border-neutral-900 p-5 text-[10px] leading-relaxed text-neutral-600">
                 <p>// 금액은 구독 사용량을 API 정가로 환산한 추정치 (단가 미공개 모델 포함 시 부분 합계)</p>
                 <p>// grok-4.7-build 수치는 실제보다 약 8% 낮게 집계</p>
                 <p>// 데이터 {snapshot.firstDay}~ — 초기 구간은 듬성할 수 있음 · 세션/기기 정보 미포함</p>
