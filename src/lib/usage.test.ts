@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   validateUsageSnapshot,
+  validateParticipantName,
+  summarizeParticipant,
+  rankParticipants,
   fmtTokens,
   fmtUsd,
   providerColor,
@@ -248,4 +251,68 @@ test("buildDailyReport: skips the just-started sync day (midnight load)", () => 
   assert.equal(r.day, "2026-11-12");
   assert.equal(r.tokens, 120);
   assert.ok(r.prev7Avg !== null && Math.abs(r.prev7Avg - 100) < 1e-9);
+});
+
+// ---------- league (multi-participant) ----------
+
+const mkDay = (day: string, tokens: number, usd = tokens * 0.01) => ({
+  day,
+  tokens,
+  usd,
+  costComplete: true,
+});
+
+test("validateParticipantName: 1-16 chars, hangul/latin/digit/space/-/_", () => {
+  for (const good of ["dave", "지노아빠", "gil-dong 1", "AI_유저", "a"]) {
+    assert.ok(validateParticipantName(good) !== null, good);
+  }
+  for (const bad of ["", "   ", "자".repeat(17), "x".repeat(17), "bad!name", "탈\\출", null, 7]) {
+    assert.equal(validateParticipantName(bad), null);
+  }
+  // trim + collapse inner spaces
+  assert.equal(validateParticipantName("  gil  dong "), "gil dong");
+});
+
+test("summarizeParticipant: 30d window anchored at lastDay, 7d delta", () => {
+  // lastDay = 11-12 (완결일 기준과 무관하게 스냅샷 daily의 최대일 기준)
+  const daily = [
+    mkDay("2026-09-01", 1000), // 30일 밖 (9/13 이전) — 제외 대상
+    mkDay("2026-10-15", 100), // 30일 창 안
+    mkDay("2026-11-06", 200),
+    mkDay("2026-11-07", 300),
+    mkDay("2026-11-08", 400),
+    mkDay("2026-11-09", 500),
+    mkDay("2026-11-10", 600),
+    mkDay("2026-11-11", 700),
+    mkDay("2026-11-12", 800),
+    mkDay("2026-11-13", 0), // 오늘 — 창 계산에는 포함되나 0
+  ];
+  const s = summarizeParticipant("dave", { ...BASE, daily });
+  assert.equal(s.name, "dave");
+  assert.equal(s.lastDay, "2026-11-13");
+  // 30일 창: 10-15 ~ 11-13 (lastDay-30 = 10/14 기준 10/15부터)
+  assert.ok(s.tokens30d > 0);
+  const expected30 = 100 + 200 + 300 + 400 + 500 + 600 + 700 + 800;
+  assert.equal(s.tokens30d, expected30);
+  assert.ok(Math.abs(s.usd30d - expected30 * 0.01) < 1e-6);
+  // 최근 7일(11/07~11/13: 300+400+500+600+700+800+0=3300) vs 직전 7일(10/29~11/05 구간 중 존재하는 200)
+  assert.ok(s.delta7dPct !== null);
+  assert.equal(s.tokens7d, 3300);
+});
+
+test("rankParticipants: usd30d desc, tie-break tokens30d desc", () => {
+  const rows = [
+    { name: "a", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 100, usd30d: 5, tokens7d: 0, delta7dPct: null },
+    { name: "b", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 300, usd30d: 9, tokens7d: 0, delta7dPct: null },
+    { name: "c", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 200, usd30d: 9, tokens7d: 0, delta7dPct: null },
+  ];
+  const ranked = rankParticipants(rows);
+  assert.deepEqual(
+    ranked.map((r) => r.name),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    ranked.map((r) => r.rank),
+    [1, 2, 3],
+  );
 });

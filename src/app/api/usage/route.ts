@@ -1,98 +1,87 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import {
   buildDailyReport,
+  rankParticipants,
+  summarizeParticipant,
   validateUsageSnapshot,
+  type RankedParticipant,
   type UsageSnapshot,
 } from "@/lib/usage";
+import { bearerOf, getDb, resolveParticipant } from "@/lib/usage-d1";
 
-// AI usage board snapshot store on Cloudflare D1 (option-2 snapshot push:
-// the nightly job POSTs one aggregated JSON; the board reads it back).
-// The table bootstraps itself (IF NOT EXISTS) per environment.
+// Usage league API (WakaTime model): each participant pushes their own
+// aggregated snapshot nightly with a personal bearer key. The master key
+// maps to the owner "dave" (legacy racknerd cron unchanged). GET serves
+// the owner view plus the ranked league summary.
 
 export const dynamic = "force-dynamic";
 
-// Minimal local types — avoids a @cloudflare/workers-types dependency.
-interface D1Result<T> {
-  results: T[];
-}
-interface D1PreparedStatement {
-  bind(...values: unknown[]): D1PreparedStatement;
-  first<T>(): Promise<T | null>;
-  all<T>(): Promise<D1Result<T>>;
-  run(): Promise<{ success: boolean }>;
-}
-interface D1Database {
-  prepare(query: string): D1PreparedStatement;
-}
-
 interface SnapshotRow {
+  participant: string;
   payload: string;
   synced_at: string;
 }
 
-const BOOTSTRAP_SQL = `CREATE TABLE IF NOT EXISTS usage_board (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  payload TEXT NOT NULL,
-  synced_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-)`;
-
 const MAX_PAYLOAD_CHARS = 512_000;
 
-async function getDb(): Promise<D1Database> {
-  const { env } = await getCloudflareContext();
-  const db = (env as Record<string, unknown>).DB as D1Database | undefined;
-  if (!db) {
-    throw new Error("D1 binding 'DB' is not configured in wrangler.jsonc");
-  }
-  await db.prepare(BOOTSTRAP_SQL).run();
-  return db;
+interface StoredBoard {
+  participant: string;
+  snapshot: UsageSnapshot;
+  storedAt: string;
 }
 
-/** Exact-match bearer secret from the environment — nothing in source.
- *  Covers both Node-style process.env and the Workers env binding
- *  (`.dev.vars` / `wrangler secret`). */
-async function authorized(request: Request): Promise<boolean> {
-  let expected = process.env.USAGE_PUSH_SECRET;
-  if (!expected) {
+async function readAllBoards(db: Awaited<ReturnType<typeof getDb>>): Promise<StoredBoard[]> {
+  const { results } = await db
+    .prepare("SELECT participant, payload, synced_at FROM usage_snapshots")
+    .all<SnapshotRow>();
+  const boards: StoredBoard[] = [];
+  for (const row of results) {
     try {
-      const { env } = await getCloudflareContext();
-      expected = (env as Record<string, unknown>).USAGE_PUSH_SECRET as
-        | string
-        | undefined;
+      const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
+      if (snapshot) {
+        boards.push({ participant: row.participant, snapshot, storedAt: row.synced_at });
+      }
     } catch {
-      // no Cloudflare context (unit tests) — no secret configured
+      // skip malformed rows (shouldn't happen — POST validates before write)
     }
   }
-  if (!expected) return false;
-  const header = request.headers.get("authorization") ?? "";
-  const prefix = "Bearer ";
-  if (!header.startsWith(prefix)) return false;
-  return header.slice(prefix.length) === expected;
+  return boards;
+}
+
+/** Legacy single-row fallback: the pre-league `usage_board` row reads as
+ *  "dave" until the first push lands in the new table. */
+async function readLegacyBoard(db: Awaited<ReturnType<typeof getDb>>): Promise<StoredBoard | null> {
+  const row = await db
+    .prepare("SELECT payload, synced_at FROM usage_board WHERE id = 1")
+    .first<{ payload: string; synced_at: string }>();
+  if (!row) return null;
+  try {
+    const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
+    if (!snapshot) return null;
+    return { participant: "dave", snapshot, storedAt: row.synced_at };
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
   try {
     const db = await getDb();
-    const row = await db
-      .prepare("SELECT payload, synced_at FROM usage_board WHERE id = 1")
-      .first<SnapshotRow>();
-    if (!row) {
-      return Response.json({ snapshot: null });
+    const boards = await readAllBoards(db);
+    let owner = boards.find((b) => b.participant === "dave") ?? null;
+    if (!owner) {
+      owner = await readLegacyBoard(db);
     }
-    const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
-    if (!snapshot) {
-      return Response.json(
-        { error: "stored snapshot failed validation" },
-        { status: 500 },
-      );
-    }
-    // The daily report is derived from the snapshot on read — it refreshes
-    // itself with every 00:00 KST push, no separate storage needed.
+    const leagueBoards = owner && !boards.some((b) => b.participant === "dave")
+      ? [...boards, owner]
+      : boards;
+    const league: RankedParticipant[] = rankParticipants(
+      leagueBoards.map((b) => summarizeParticipant(b.participant, b.snapshot)),
+    );
     return Response.json({
-      snapshot,
-      report: buildDailyReport(snapshot),
-      storedAt: row.synced_at,
+      snapshot: owner?.snapshot ?? null,
+      report: owner ? buildDailyReport(owner.snapshot) : null,
+      league,
+      storedAt: owner?.storedAt ?? null,
     });
   } catch (err) {
     return Response.json(
@@ -103,43 +92,48 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await authorized(request))) {
+  const bearer = bearerOf(request);
+  if (!bearer) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const raw = await request.text();
-  if (raw.length > MAX_PAYLOAD_CHARS) {
-    return Response.json(
-      { error: `payload too large (${raw.length} > ${MAX_PAYLOAD_CHARS} chars)` },
-      { status: 413 },
-    );
-  }
-  let body: unknown;
-  try {
-    body = JSON.parse(raw);
-  } catch {
-    return Response.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-  const snapshot: UsageSnapshot | null = validateUsageSnapshot(body);
-  if (!snapshot) {
-    return Response.json(
-      { error: "invalid snapshot (dates/dow/hour/numbers or array caps)" },
-      { status: 400 },
-    );
   }
   try {
     const db = await getDb();
+    const who = await resolveParticipant(db, bearer);
+    if (!who) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const raw = await request.text();
+    if (raw.length > MAX_PAYLOAD_CHARS) {
+      return Response.json(
+        { error: `payload too large (${raw.length} > ${MAX_PAYLOAD_CHARS} chars)` },
+        { status: 413 },
+      );
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return Response.json({ error: "invalid JSON body" }, { status: 400 });
+    }
+    const snapshot = validateUsageSnapshot(body);
+    if (!snapshot) {
+      return Response.json(
+        { error: "invalid snapshot (dates/dow/hour/numbers or array caps)" },
+        { status: 400 },
+      );
+    }
     await db
       .prepare(
-        `INSERT INTO usage_board (id, payload, synced_at, updated_at)
-         VALUES (1, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
-         ON CONFLICT(id) DO UPDATE SET
+        `INSERT INTO usage_snapshots (participant, payload, synced_at, updated_at)
+         VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+         ON CONFLICT(participant) DO UPDATE SET
            payload = excluded.payload,
            synced_at = excluded.synced_at,
            updated_at = excluded.updated_at`,
       )
-      .bind(raw, snapshot.syncedAt)
+      .bind(who.name, raw, snapshot.syncedAt)
       .run();
-    return Response.json({ ok: true, syncedAt: snapshot.syncedAt });
+    return Response.json({ ok: true, participant: who.name, syncedAt: snapshot.syncedAt });
   } catch (err) {
     return Response.json(
       { error: `usage write failed: ${(err as Error).message}` },

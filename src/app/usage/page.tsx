@@ -12,6 +12,7 @@ import {
   fmtUsd,
   providerColor,
   type DailyReport,
+  type RankedParticipant,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { CountUp, GrowBar, Reveal, useInView } from "@/components/ScrollFX";
@@ -128,6 +129,7 @@ function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) 
 export default function UsagePage() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [report, setReport] = useState<DailyReport | null>(null);
+  const [league, setLeague] = useState<RankedParticipant[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">(
     "loading",
   );
@@ -142,10 +144,12 @@ export default function UsagePage() {
         return (await r.json()) as {
           snapshot: UsageSnapshot | null;
           report?: DailyReport | null;
+          league?: RankedParticipant[];
         };
       })
       .then((data) => {
         if (cancelled) return;
+        setLeague(data.league ?? []);
         if (data.snapshot) {
           setSnapshot(data.snapshot);
           setReport(data.report ?? null);
@@ -358,6 +362,58 @@ export default function UsagePage() {
                       </p>
                     )}
                   </div>
+                </section>
+              </Reveal>
+            )}
+
+            {/* ---------- league ranking ---------- */}
+            {league.length > 1 && (
+              <Reveal>
+                <section className="mt-6 rounded-3xl border border-[#9775FA]/25 bg-[#9775FA]/[0.07] p-6">
+                  <p className="text-sm font-black tracking-widest text-[#9775FA]">
+                    🏆 리그 랭킹 · 최근 30일
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {league.map((p) => (
+                      <div
+                        key={p.name}
+                        className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl border p-3 ${
+                          p.rank === 1
+                            ? "border-[#FFD93D]/50 bg-[#FFD93D]/10"
+                            : "border-white/10 bg-black/30"
+                        }`}
+                      >
+                        <p className="text-lg font-black text-white">
+                          <span className="mr-2">
+                            {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : p.rank === 3 ? "🥉" : `${p.rank}위`}
+                          </span>
+                          {p.name}
+                          {p.delta7dPct !== null && (
+                            <span
+                              className="ml-2 rounded-full px-2 py-0.5 align-middle text-xs font-bold"
+                              style={{
+                                background: p.delta7dPct >= 0 ? "#FF8C4222" : "#6BCB7722",
+                                color: p.delta7dPct >= 0 ? "#FF8C42" : "#6BCB77",
+                              }}
+                            >
+                              {p.delta7dPct >= 0 ? "▲" : "▼"} {Math.abs(p.delta7dPct).toFixed(0)}%
+                            </span>
+                          )}
+                        </p>
+                        <p className="font-mono text-sm text-white/70">
+                          <b className="text-[#FFD93D]">{fmtUsd(p.usd30d)}</b>
+                          <span className="mx-2 text-white/30">|</span>
+                          {fmtTokens(p.tokens30d)} 토큰
+                          <span className="mx-2 text-white/30">|</span>
+                          <span className="text-white/40">{p.lastDay} 갱신</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] text-white/40">
+                    공정 축은 환산 비용($) — 제공자별 캐시·집계 차이 때문에 원시 토큰은
+                    참고용입니다.
+                  </p>
                 </section>
               </Reveal>
             )}

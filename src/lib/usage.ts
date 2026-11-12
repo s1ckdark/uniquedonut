@@ -283,6 +283,91 @@ export function aggregateByMonth(daily: DailyPoint[]): MonthPoint[] {
   return [...byKey.values()].sort((a, b) => a.month.localeCompare(b.month));
 }
 
+// ---------- league (multi-participant) ----------
+
+/** 참가자명 규칙: 1-16자, 한글/영문/숫자/공백/-/_ (공백은 trim·연속 축약). */
+export function validateParticipantName(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim().replace(/\s+/g, " ");
+  if (trimmed.length < 1 || trimmed.length > 16) return null;
+  if (!/^[\p{Script=Hangul}\p{L}\p{N} _-]+$/u.test(trimmed)) return null;
+  return trimmed;
+}
+
+export interface ParticipantSummary {
+  name: string;
+  lastSync: string;
+  lastDay: string;
+  totalTokens: number;
+  totalUsd: number;
+  /** lastDay로부터 30일 창의 토큰/비용 합 */
+  tokens30d: number;
+  usd30d: number;
+  /** 최근 7일 (완결일 무관, daily 최대일 기준) */
+  tokens7d: number;
+  /** 최근 7일 vs 직전 7일 증감(%) — 직전 7일에 데이터가 없으면 null */
+  delta7dPct: number | null;
+}
+
+/** 참가자 스냅샷 → 리그용 요약. 창 기준은 스냅샷 daily의 최대 날짜. */
+export function summarizeParticipant(
+  name: string,
+  snapshot: UsageSnapshot,
+): ParticipantSummary {
+  const sorted = [...snapshot.daily].sort((a, b) => a.day.localeCompare(b.day));
+  const lastDay = sorted.length > 0 ? sorted[sorted.length - 1].day : snapshot.lastDay;
+  const anchor = new Date(`${lastDay}T00:00:00Z`).getTime();
+  const DAY_MS = 86_400_000;
+  const inWindow = (day: string, days: number) =>
+    new Date(`${day}T00:00:00Z`).getTime() >= anchor - (days - 1) * DAY_MS &&
+    new Date(`${day}T00:00:00Z`).getTime() <= anchor;
+
+  const win30 = sorted.filter((p) => inWindow(p.day, 30));
+  const last7 = sorted.filter((p) => inWindow(p.day, 7));
+  const last7Start = last7.length > 0 ? last7[0].day : null;
+  const prev7 = sorted.filter((p) => {
+    if (last7Start === null) return false;
+    return (
+      new Date(`${p.day}T00:00:00Z`).getTime() <
+        new Date(`${last7Start}T00:00:00Z`).getTime() &&
+      new Date(`${p.day}T00:00:00Z`).getTime() >=
+        new Date(`${last7Start}T00:00:00Z`).getTime() - 7 * DAY_MS
+    );
+  });
+  const sum = (rows: typeof sorted, pick: (p: (typeof sorted)[number]) => number) =>
+    rows.reduce((a, p) => a + pick(p), 0);
+
+  const tokens7d = sum(last7, (p) => p.tokens);
+  const prevTokens = sum(prev7, (p) => p.tokens);
+  const delta7dPct = prevTokens > 0 ? ((tokens7d - prevTokens) / prevTokens) * 100 : null;
+
+  return {
+    name,
+    lastSync: snapshot.syncedAt,
+    lastDay,
+    totalTokens: snapshot.totalTokens,
+    totalUsd: snapshot.totalUsd,
+    tokens30d: sum(win30, (p) => p.tokens),
+    usd30d: Math.round(sum(win30, (p) => p.usd ?? 0) * 100) / 100,
+    tokens7d,
+    delta7dPct,
+  };
+}
+
+export interface RankedParticipant extends ParticipantSummary {
+  rank: number;
+}
+
+/** 랭킹: usd30d 내림차순, 동점이면 tokens30d 내림차순. */
+export function rankParticipants(
+  rows: ParticipantSummary[],
+): RankedParticipant[] {
+  const sorted = [...rows].sort(
+    (a, b) => b.usd30d - a.usd30d || b.tokens30d - a.tokens30d,
+  );
+  return sorted.map((row, i) => ({ ...row, rank: i + 1 }));
+}
+
 // ---------- daily report (자정 적재 시점 자동 작성) ----------
 
 export interface DailyReport {
