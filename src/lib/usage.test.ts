@@ -219,3 +219,33 @@ test("buildDailyReport: null when daily is empty or too short", () => {
   assert.equal(r.prev7Avg, null);
   assert.equal(r.deltaPct, null);
 });
+
+test("buildDailyReport: skips the just-started sync day (midnight load)", () => {
+  // 자정 00:00 적재: syncedAt 날짜(11/13)는 0토큰 — 리포트는 전날(11/12)을 봐야 한다
+  const mk = (day: string, tokens: number) => ({
+    day,
+    tokens,
+    usd: tokens * 0.01,
+    costComplete: true,
+  });
+  const daily = [
+    mk("2026-11-05", 100),
+    mk("2026-11-06", 100),
+    mk("2026-11-07", 100),
+    mk("2026-11-08", 100),
+    mk("2026-11-09", 100),
+    mk("2026-11-10", 100),
+    mk("2026-11-11", 100),
+    mk("2026-11-12", 120), // 마지막 완결일
+    mk("2026-11-13", 0), // 방금 시작된 오늘
+  ];
+  const r = buildDailyReport({
+    ...BASE,
+    syncedAt: "2026-11-13T00:00:45+09:00",
+    daily,
+  });
+  assert.ok(r);
+  assert.equal(r.day, "2026-11-12");
+  assert.equal(r.tokens, 120);
+  assert.ok(r.prev7Avg !== null && Math.abs(r.prev7Avg - 100) < 1e-9);
+});

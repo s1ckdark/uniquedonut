@@ -76,7 +76,7 @@ SELECT json_build_object(
   'totalUsd',    COALESCE((SELECT round(sum(api_usd)::numeric, 2) FROM token_usage.daily_usage), 0),
   'daily',       COALESCE((SELECT json_agg(json_build_object(
                     'day', to_char(day, 'YYYY-MM-DD'), 'tokens', tokens,
-                    'usd', usd, 'costComplete', cost_complete) ORDER BY day FROM daily), '[]'::json),
+                    'usd', usd, 'costComplete', cost_complete) ORDER BY day) FROM daily), '[]'::json),
   'providers',   COALESCE((SELECT json_agg(json_build_object(
                     'provider', provider, 'tokens', tokens, 'usd', usd)
                     ORDER BY tokens DESC) FROM providers), '[]'::json),
@@ -98,7 +98,7 @@ if [[ -z "$SNAPSHOT" || "$SNAPSHOT" == "null" ]]; then
   exit 0
 fi
 
-LAST_DAY=$(printf '%s' "$SNAPSHOT" | grep -o '"lastDay":"[^"]*"' | cut -d'"' -f4)
+LAST_DAY=$(printf '%s' "$SNAPSHOT" | grep -o '"lastDay"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
 if [[ -z "$LAST_DAY" || "$LAST_DAY" == "null" ]]; then
   echo "$(date -u '+%Y-%m-%dT%H:%M:%SZ') SKIP: daily_usage 가 비어 있어 lastDay 없음"
   exit 0

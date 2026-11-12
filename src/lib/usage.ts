@@ -298,12 +298,16 @@ export interface DailyReport {
   topModel: ModelPoint | null;
 }
 
-/** 스냅샷의 마지막 날짜에 대한 일일 리포트를 도출 — 00:00 적재와 함께 생성. */
+/** 스냅샷의 마지막 완결일에 대한 일일 리포트를 도출 — 00:00 적재와 함께 생성.
+ *  자정 직후 적재는 "오늘"이 0토큰으로 들어있으므로, 동기화 날짜(KST)보다
+ *  이전 날짜 중 가장 최근일을 리포트 대상으로 삼는다. */
 export function buildDailyReport(snapshot: UsageSnapshot): DailyReport | null {
   if (snapshot.daily.length === 0) return null;
   const sorted = [...snapshot.daily].sort((a, b) => a.day.localeCompare(b.day));
-  const last = sorted[sorted.length - 1];
-  const prev = sorted.slice(-8, -1);
+  const syncDay = snapshot.syncedAt.slice(0, 10); // YYYY-MM-DD (KST)
+  const complete = sorted.filter((p) => p.day < syncDay);
+  const last = complete.length > 0 ? complete[complete.length - 1] : sorted[sorted.length - 1];
+  const prev = complete.slice(-8, -1);
   let prev7Avg: number | null = null;
   let deltaPct: number | null = null;
   if (prev.length > 0) {
