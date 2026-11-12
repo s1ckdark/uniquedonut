@@ -42,6 +42,9 @@ yarn-error.log*
 .wrangler/
 .dev.vars
 
+# usage push (racknerd 실제 env 파일 — 예시만 커밋)
+scripts/usage-push.env
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
