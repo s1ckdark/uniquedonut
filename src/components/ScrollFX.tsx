@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /** Fires once when the element scrolls into view. */
-function useInView<T extends HTMLElement>(threshold = 0.3) {
+export function useInView<T extends HTMLElement>(threshold = 0.3) {
   const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {

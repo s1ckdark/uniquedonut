@@ -262,6 +262,16 @@ const allDonuts: Donut[] = [
     price: "$7.50",
     color: "#4D96FF",
   },
+  {
+    slug: "token-board",
+    name: "Token Board",
+    description: "내 AI 서비스 사용량 리포트",
+    route: "/usage",
+    category: "Chef's Special",
+    tags: ["Data", "Dashboard"],
+    price: "$9.00",
+    color: "#9775FA",
+  },
 ];
 
 export const categories: Category[] = [
