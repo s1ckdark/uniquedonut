@@ -18,7 +18,6 @@ import { CountUp, GrowBar, Reveal, useInView } from "@/components/ScrollFX";
 
 const MONO = "var(--font-geist-mono, ui-monospace, SFMono-Regular, monospace)";
 const DOW_LABELS = ["", "월", "화", "수", "목", "금", "토", "일"];
-const TREND_DAYS = 90;
 const GRANULARITIES = [
   { key: "hour", label: "시간별" },
   { key: "day", label: "일별" },
@@ -26,6 +25,16 @@ const GRANULARITIES = [
   { key: "month", label: "월별" },
 ] as const;
 type Granularity = (typeof GRANULARITIES)[number]["key"];
+const PERIODS = [
+  { key: "d1", days: 1, label: "1일" },
+  { key: "w1", days: 7, label: "1주" },
+  { key: "m1", days: 31, label: "1달" },
+  { key: "m3", days: 92, label: "3달" },
+  { key: "all", days: Infinity, label: "전체" },
+] as const;
+type Period = (typeof PERIODS)[number]["key"];
+/** "전체"일 때 일별 목록 상한 — 최대 800일이라 최근치만 노출 */
+const DAY_ROW_CAP = 120;
 
 const HEAT_BG = [
   "bg-white/[0.06]",
@@ -97,7 +106,7 @@ function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) 
       className="mt-4 w-full"
       style={{ overflow: "visible" }}
       role="img"
-      aria-label="최근 90일 토큰 추이"
+      aria-label="선택 기간 토큰 추이"
     >
       <path
         d={area}
@@ -143,6 +152,7 @@ export default function UsagePage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [gran, setGran] = useState<Granularity>("day");
+  const [period, setPeriod] = useState<Period>("m1");
 
   useEffect(() => {
     let cancelled = false;
@@ -184,11 +194,22 @@ export default function UsagePage() {
     () => Math.max(...(snapshot?.daily.map((d) => d.tokens) ?? [0]), 1),
     [snapshot],
   );
-  const trendDays = useMemo(() => {
+  const periodDaily = useMemo(() => {
     if (!snapshot) return [];
     const sorted = [...snapshot.daily].sort((a, b) => a.day.localeCompare(b.day));
-    return sorted.slice(-TREND_DAYS);
-  }, [snapshot]);
+    const p = PERIODS.find((x) => x.key === period);
+    return !p || p.days === Infinity ? sorted : sorted.slice(-p.days);
+  }, [snapshot, period]);
+  const maxPeriodDaily = useMemo(
+    () => Math.max(...periodDaily.map((d) => d.tokens), 1),
+    [periodDaily],
+  );
+  const dailyRows = useMemo(
+    // 최신일부터 위에서 아래로 — tail 순서
+    () => [...periodDaily].reverse().slice(0, DAY_ROW_CAP),
+    [periodDaily],
+  );
+  const dailyRowsTruncated = periodDaily.length > dailyRows.length;
   const providerTotal = useMemo(
     () => snapshot?.providers.reduce((a, p) => a + p.tokens, 0) ?? 0,
     [snapshot],
@@ -481,6 +502,30 @@ export default function UsagePage() {
                   </div>
                 </div>
 
+                {gran === "day" && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      range
+                    </span>
+                    <div className="flex gap-1 rounded-full border border-neutral-800 p-1">
+                      {PERIODS.map((p) => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => setPeriod(p.key)}
+                          className={`rounded-full px-3 py-1 text-[11px] font-bold transition cursor-pointer ${
+                            period === p.key
+                              ? "bg-white text-black"
+                              : "text-neutral-500 hover:text-white"
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {gran === "hour" && (
                   <>
                     <p className="mt-1 text-xs text-neutral-600">
@@ -501,14 +546,37 @@ export default function UsagePage() {
                 {gran === "day" && (
                   <>
                     <p className="mt-1 text-xs text-neutral-600">
-                      최근 {TREND_DAYS}일 (전체 기간은 잔디 그래프에서)
+                      {periodDaily.length === 1
+                        ? "가장 최근 하루의 정확한 사용량"
+                        : `선택 기간 ${periodDaily.length}일 — 아래 목록에서 날짜별 정확한 값 확인`}
                     </p>
-                    <TrendChart days={trendDays} />
+                    <TrendChart days={periodDaily} />
                     <div className="mt-1 flex justify-between text-[10px] text-neutral-600">
-                      <span>{trendDays[0]?.day}</span>
-                      <span>peak {fmtTokens(maxDaily)} /일</span>
-                      <span>{trendDays[trendDays.length - 1]?.day}</span>
+                      <span>{periodDaily[0]?.day}</span>
+                      <span>peak {fmtTokens(maxPeriodDaily)} /일</span>
+                      <span>{periodDaily[periodDaily.length - 1]?.day}</span>
                     </div>
+                    <div className="mt-6 space-y-4">
+                      {dailyRows.map((d, i) => (
+                        <GrowBar
+                          key={d.day}
+                          pct={(d.tokens / maxPeriodDaily) * 100}
+                          color="#E4E4E7"
+                          trackClass="bg-white/5"
+                          heightClass="h-4"
+                          delay={Math.min(i, 24) * 40}
+                          label={d.day}
+                          valueLabel={`${fmtTokens(d.tokens)} · ${fmtUsd(d.usd)}${
+                            d.usd !== null && !d.costComplete ? " (부분)" : ""
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {dailyRowsTruncated && (
+                      <p className="mt-2 text-[10px] text-neutral-600">
+                        {`// 전체 기간이 길어 최근 ${DAY_ROW_CAP}일만 표시 — 전체 모양은 잔디 그래프에서`}
+                      </p>
+                    )}
                   </>
                 )}
 
