@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_API = "https://uniquedonut.s1ckdark.workers.dev/api/usage";
+const DEFAULT_API = "https://uniquedonut.com/api/usage";
 const DIR = join(process.env.HOME ?? ".", ".tokenholic");
 const AGENT_PATH = join(DIR, "agent.mjs");
 const CONFIG_PATH = join(DIR, "config.json");

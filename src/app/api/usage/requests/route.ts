@@ -9,8 +9,8 @@ import { bearerOf, getDb, getMasterKey } from "@/lib/usage-d1";
 export const dynamic = "force-dynamic";
 
 const MAX_PENDING = 20;
-const BOARD_URL = "https://uniquedonut.s1ckdark.workers.dev/usage";
-const AGENT_URL = "https://uniquedonut.s1ckdark.workers.dev/tokenholic-agent.mjs";
+const BOARD_URL = "https://uniquedonut.com/usage";
+const AGENT_URL = "https://uniquedonut.com/tokenholic-agent.mjs";
 
 interface RequestRow {
   id: number;

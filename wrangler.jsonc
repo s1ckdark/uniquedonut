@@ -17,5 +17,9 @@
 			"database_name": "uniquedonut-db",
 			"database_id": "a163b893-7298-41fc-bc5f-5b2fbc5ab6cb"
 		}
+	],
+	// Custom domain — Cloudflare가 DNS 레코드와 인증서를 자동 프로비저닝한다.
+	"routes": [
+		{ "pattern": "uniquedonut.com", "custom_domain": true }
 	]
 }
