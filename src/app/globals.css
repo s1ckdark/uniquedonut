@@ -1,8 +1,28 @@
 @import "tailwindcss";
 
+/* Self-hosted variable fonts (latin) — replaces next/font/google so CI
+   builds never fetch Google Fonts at build time (Cloudflare Workers
+   Builds failed resolving the turbopack font module). */
+@font-face {
+  font-family: "Fredoka";
+  src: url("/fonts/Fredoka.var.woff2") format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk.var.woff2") format("woff2-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #1A0A2E;
   --foreground: #FEFEFE;
+  --font-fredoka: "Fredoka";
+  --font-space-grotesk: "Space Grotesk";
 }
 
 @theme inline {

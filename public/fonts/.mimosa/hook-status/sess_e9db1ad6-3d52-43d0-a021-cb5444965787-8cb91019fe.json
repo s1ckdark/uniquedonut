@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-11-16T08:30:42.894Z",
+  "sessionId": "sess_e9db1ad6-3d52-43d0-a021-cb5444965787",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "/Users/dave/iWorks/uniquedonut/src/app/layout.tsx",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 6,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}
