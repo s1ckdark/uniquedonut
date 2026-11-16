@@ -467,6 +467,8 @@ function JoinPanel() {
         setIssued({ name: d.name, key: d.key });
       }
       await loadReqs(key);
+      // 상단 대기 배지 갱신 트리거
+      window.dispatchEvent(new CustomEvent("tokenholic-requests"));
     } catch (e) {
       setAdminErr((e as Error).message);
     }
@@ -610,6 +612,37 @@ export default function UsagePage() {
   const [error, setError] = useState<string | null>(null);
   const [gran, setGran] = useState<Granularity>("day");
   const [period, setPeriod] = useState<Period>("m1");
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  // 운영자 세션이 살아 있으면 대기 신청 수를 상단 배지에 띄운다.
+  // JoinPanel 이 승인/거절할 때마다 'tokenholic-requests' 이벤트로 갱신.
+  useEffect(() => {
+    const adminKey = sessionStorage.getItem("tokenholic-admin");
+    if (!adminKey) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const r = await fetch("/api/usage/requests", {
+          headers: { Authorization: `Bearer ${adminKey}` },
+        });
+        if (!r.ok) return;
+        const d = (await r.json()) as {
+          requests: Array<{ status: string }>;
+        };
+        if (!cancelled) {
+          setPendingCount(d.requests.filter((x) => x.status === "pending").length);
+        }
+      } catch {
+        // 배지는 부가 기능 — 조용히 실패
+      }
+    };
+    void refresh();
+    window.addEventListener("tokenholic-requests", refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("tokenholic-requests", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -715,6 +748,22 @@ export default function UsagePage() {
             <span className="hidden rounded-full border border-neutral-800 px-3 py-1 text-[10px] font-bold text-neutral-500 sm:inline">
               $ = API 환산 추정
             </span>
+            {pendingCount !== null && (
+              <button
+                type="button"
+                onClick={() =>
+                  document.getElementById("join")?.scrollIntoView({ behavior: "smooth" })
+                }
+                className={`rounded-full border px-3 py-2 text-xs font-bold transition cursor-pointer ${
+                  pendingCount > 0
+                    ? "animate-pulse border-white bg-white text-black"
+                    : "border-neutral-800 text-neutral-500 hover:text-white"
+                }`}
+                aria-label="대기 중인 참여 신청"
+              >
+                🔔 {pendingCount}
+              </button>
+            )}
             <a
               href="/tokenholic-agent.mjs"
               download
@@ -1190,7 +1239,7 @@ export default function UsagePage() {
 
             {/* ---------- join guide ---------- */}
             <Reveal>
-              <section className="mt-12 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+              <section id="join" className="mt-12 scroll-mt-6 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
                 <SectionTitle>참여 방법 how-to-join</SectionTitle>
                 <div className="mt-4 space-y-2 text-xs leading-relaxed text-neutral-400">
                   <p>
