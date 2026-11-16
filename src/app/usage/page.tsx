@@ -81,53 +81,150 @@ function VerticalBars({
   );
 }
 
-/** Last N days area chart that draws itself on scroll. */
-function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) {
+/** Hover-interactive point chart (일별/월별): draw-on line + data points
+ *  with a bubble tooltip on hover. Points thin out automatically for long
+ *  ranges; the focus dot + bubble work for any density. */
+function HoverPointChart({
+  points,
+  tickEvery = 0,
+}: {
+  points: Array<{ label: string; tokens: number; usd: number | null }>;
+  /** x축 라벨 간격(포인트 수) — 0이면 자동 */
+  tickEvery?: number;
+}) {
+  const { ref, inView } = useInView<HTMLDivElement>(0.25);
   const [drawn, setDrawn] = useState(false);
+  const [hover, setHover] = useState<number | null>(null);
   useEffect(() => {
+    if (!inView) return;
     const t = setTimeout(() => setDrawn(true), 150);
     return () => clearTimeout(t);
-  }, []);
-  if (days.length < 2) return null;
+  }, [inView]);
+  if (points.length < 2) return null;
+
   const w = 720;
-  const h = 160;
-  const max = Math.max(...days.map((d) => d.tokens), 1);
-  const step = w / (days.length - 1);
-  const pts = days.map((d, i) => {
-    const x = i * step;
-    const y = h - (d.tokens / max) * (h - 12) - 6;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const line = `M ${pts.join(" L ")}`;
+  const h = 150;
+  const axisH = 18;
+  const max = Math.max(...points.map((p) => p.tokens), 1);
+  const step = w / (points.length - 1);
+  const xy = points.map((p, i) => ({
+    x: i * step,
+    y: h - (p.tokens / max) * (h - 14) - 7,
+  }));
+  const line = `M ${xy.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" L ")}`;
   const area = `${line} L ${w},${h} L 0,${h} Z`;
+  const showDots = points.length <= 92;
+  const dotR = points.length > 45 ? 2 : 3.5;
+  const tick = tickEvery > 0 ? tickEvery : Math.max(1, Math.ceil(points.length / 6));
+
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const idx = Math.round(ratio * (points.length - 1));
+    setHover(Math.max(0, Math.min(points.length - 1, idx)));
+  };
+
+  const hp = hover !== null ? xy[hover] : null;
+  const hpData = hover !== null ? points[hover] : null;
+  // 버블 위치: 위쪽 60% 영역이면 포인트 아래로, 아니면 위로 — 좌우는 8~92%로 클램프
+  const bubbleLeft = hp ? Math.min(92, Math.max(8, (hp.x / w) * 100)) : 0;
+  const bubbleBelow = hp ? hp.y / h > 0.6 : false;
+
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      className="mt-4 w-full"
-      style={{ overflow: "visible" }}
-      role="img"
-      aria-label="선택 기간 토큰 추이"
+    <div
+      ref={ref}
+      className="relative mt-4 cursor-crosshair"
+      onPointerMove={onMove}
+      onPointerLeave={() => setHover(null)}
     >
-      <path
-        d={area}
-        fill="#FFFFFF"
-        opacity={drawn ? 0.12 : 0}
-        style={{ transition: "opacity 1.2s ease 0.6s" }}
-      />
-      <path
-        d={line}
-        fill="none"
-        stroke="#FEFEFE"
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        style={{
-          strokeDasharray: 2400,
-          strokeDashoffset: drawn ? 0 : 2400,
-          transition: "stroke-dashoffset 1.6s ease-out",
-        }}
-      />
-    </svg>
+      <svg
+        viewBox={`0 0 ${w} ${h + axisH}`}
+        className="block w-full"
+        role="img"
+        aria-label="기간별 토큰 추이"
+      >
+        <path
+          d={area}
+          fill="#FFFFFF"
+          opacity={drawn ? 0.12 : 0}
+          style={{ transition: "opacity 1.2s ease 0.6s" }}
+        />
+        <path
+          d={line}
+          fill="none"
+          stroke="#FEFEFE"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          style={{
+            strokeDasharray: 2400,
+            strokeDashoffset: drawn ? 0 : 2400,
+            transition: "stroke-dashoffset 1.6s ease-out",
+          }}
+        />
+        {showDots &&
+          xy.map((c, i) => (
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={dotR}
+              fill="#0A0A0A"
+              stroke="#FEFEFE"
+              strokeWidth={1.5}
+              opacity={drawn ? 1 : 0}
+              style={{ transition: "opacity 0.6s ease 0.9s" }}
+            />
+          ))}
+        {hp && (
+          <>
+            <line
+              x1={hp.x}
+              y1={hp.y}
+              x2={hp.x}
+              y2={h}
+              stroke="#FFFFFF"
+              strokeOpacity={0.35}
+              strokeDasharray="3 3"
+            />
+            <circle cx={hp.x} cy={hp.y} r={5} fill="#FEFEFE" />
+            <circle cx={hp.x} cy={hp.y} r={9} fill="#FEFEFE" opacity={0.2} />
+          </>
+        )}
+        {points.map((p, i) =>
+          i % tick === 0 || i === points.length - 1 ? (
+            <text
+              key={`t-${i}`}
+              x={Math.min(w - 4, Math.max(4, xy[i].x))}
+              y={h + axisH - 6}
+              textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+              fontSize={9}
+              fill="#52525B"
+              style={{ fontFamily: "inherit" }}
+            >
+              {p.label.length > 7 ? p.label.slice(5) : p.label}
+            </text>
+          ) : null,
+        )}
+      </svg>
+      {hp && hpData && (
+        <div
+          className="pointer-events-none absolute z-10 whitespace-nowrap rounded-lg border border-neutral-600 bg-[#18181B] px-2.5 py-1.5 text-[10px] leading-snug shadow-lg"
+          style={{
+            left: `${bubbleLeft}%`,
+            top: `${(hp.y / (h + axisH)) * 100}%`,
+            transform: bubbleBelow
+              ? "translate(-50%, 14px)"
+              : "translate(-50%, calc(-100% - 14px))",
+          }}
+        >
+          <p className="font-bold text-neutral-400">{hpData.label}</p>
+          <p className="text-white">
+            {fmtTokens(hpData.tokens)} tokens · {fmtUsd(hpData.usd)}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -691,13 +788,17 @@ export default function UsagePage() {
                 {gran === "day" && period !== "d1" && (
                   <>
                     <p className="mt-1 text-xs text-neutral-600">
-                      {`선택 기간 ${periodDaily.length}일 — 아래 목록에서 날짜별 정확한 값 확인`}
+                      {`선택 기간 ${periodDaily.length}일 — 그래프에 마우스를 올리면 수치가 버블로 표시`}
                     </p>
-                    <TrendChart days={periodDaily} />
+                    <HoverPointChart
+                      points={periodDaily.map((d) => ({
+                        label: d.day,
+                        tokens: d.tokens,
+                        usd: d.usd,
+                      }))}
+                    />
                     <div className="mt-1 flex justify-between text-[10px] text-neutral-600">
-                      <span>{periodDaily[0]?.day}</span>
                       <span>peak {fmtTokens(maxPeriodDaily)} /일</span>
-                      <span>{periodDaily[periodDaily.length - 1]?.day}</span>
                     </div>
                     <div className="mt-6 space-y-4">
                       {dailyRows.map((d, i) => (
@@ -748,8 +849,17 @@ export default function UsagePage() {
                 {gran === "month" && (
                   <>
                     <p className="mt-1 text-xs text-neutral-600">
-                      월별 합계 — 전체 {monthBars.length}개월
+                      월별 합계 — 전체 {monthBars.length}개월 · 포인트에 마우스를
+                      올리면 버블
                     </p>
+                    <HoverPointChart
+                      points={monthBars.map((m) => ({
+                        label: m.month,
+                        tokens: m.tokens,
+                        usd: m.usd,
+                      }))}
+                      tickEvery={Math.max(1, Math.ceil(monthBars.length / 8))}
+                    />
                     <div className="mt-6 space-y-4">
                       {monthBars.map((m, i) => (
                         <GrowBar
@@ -758,7 +868,7 @@ export default function UsagePage() {
                           color="#A1A1AA"
                           trackClass="bg-white/5"
                           heightClass="h-4"
-                          delay={i * 50}
+                          delay={Math.min(i, 24) * 40}
                           label={m.month}
                           valueLabel={`${fmtTokens(m.tokens)} · ${fmtUsd(m.usd)}`}
                         />
