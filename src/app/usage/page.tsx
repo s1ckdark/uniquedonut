@@ -615,7 +615,8 @@ export default function UsagePage() {
   const [pendingCount, setPendingCount] = useState<number | null>(null);
 
   // 운영자 세션이 살아 있으면 대기 신청 수를 상단 배지에 띄운다.
-  // JoinPanel 이 승인/거절할 때마다 'tokenholic-requests' 이벤트로 갱신.
+  // JoinPanel 승인/거절 이벤트 + 15초 폴링(탭이 보일 때만) + 포커스 시 갱신 —
+  // 새 신청이 들어오면 새로고침 없이 배지가 바로 오른다.
   useEffect(() => {
     const adminKey = sessionStorage.getItem("tokenholic-admin");
     if (!adminKey) return;
@@ -638,9 +639,15 @@ export default function UsagePage() {
     };
     void refresh();
     window.addEventListener("tokenholic-requests", refresh);
+    window.addEventListener("focus", refresh);
+    const iv = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 15_000);
     return () => {
       cancelled = true;
       window.removeEventListener("tokenholic-requests", refresh);
+      window.removeEventListener("focus", refresh);
+      clearInterval(iv);
     };
   }, []);
 
