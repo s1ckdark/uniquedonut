@@ -56,6 +56,12 @@ export async function getDb(): Promise<D1Database> {
   for (const sql of BOOTSTRAP_STATEMENTS) {
     await db.prepare(sql).run();
   }
+  // 이메일 열은 기존 테이블엔 없음 — ADD COLUMN IF NOT EXISTS가 없어 중복 오류는 삼킴
+  try {
+    await db.prepare("ALTER TABLE usage_requests ADD COLUMN email TEXT").run();
+  } catch {
+    // column already present
+  }
   return db;
 }
 

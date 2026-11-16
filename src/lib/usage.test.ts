@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   validateUsageSnapshot,
   validateParticipantName,
+  validateEmail,
   summarizeParticipant,
   rankParticipants,
   fmtTokens,
@@ -260,6 +261,33 @@ const mkDay = (day: string, tokens: number, usd = tokens * 0.01) => ({
   tokens,
   usd,
   costComplete: true,
+});
+
+test("validateEmail: accepts sane addresses, rejects garbage", () => {
+  for (const good of [
+    "lyh@example.com",
+    "gil.dong+tag@sub.example.co.kr",
+    "a@b.io",
+    "x_y-z@test.dev",
+  ]) {
+    assert.ok(validateEmail(good) !== null, good);
+  }
+  for (const bad of [
+    "",
+    "no-at-sign",
+    "@nodomain.com",
+    "no-local@",
+    "space in@local.com",
+    "user@domain",
+    "user@.com",
+    "a".repeat(65) + "@example.com", // 로컬 64자 초과
+    "a@" + "b".repeat(250) + ".com", // 전체 254자 초과
+    null,
+    7,
+  ]) {
+    assert.equal(validateEmail(bad), null);
+  }
+  assert.equal(validateEmail("  Trim@Example.COM "), "trim@example.com");
 });
 
 test("validateParticipantName: 1-16 chars, hangul/latin/digit/space/-/_", () => {

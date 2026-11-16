@@ -369,10 +369,12 @@ interface AdminRequestRow {
   name: string;
   status: string;
   created_at: string;
+  email: string | null;
 }
 
 function JoinPanel() {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [reqMsg, setReqMsg] = useState<string | null>(null);
   const [reqErr, setReqErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -381,7 +383,11 @@ function JoinPanel() {
   const [adminKey, setAdminKey] = useState("");
   const [authed, setAuthed] = useState(false);
   const [reqs, setReqs] = useState<AdminRequestRow[]>([]);
-  const [issued, setIssued] = useState<{ name: string; key: string } | null>(null);
+  const [issued, setIssued] = useState<{
+    name: string;
+    key: string;
+    emailed?: boolean;
+  } | null>(null);
   const [adminErr, setAdminErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -409,7 +415,8 @@ function JoinPanel() {
 
   async function submitRequest() {
     const trimmed = name.trim();
-    if (!trimmed) return;
+    const mail = email.trim();
+    if (!trimmed || !mail) return;
     setSending(true);
     setReqErr(null);
     setReqMsg(null);
@@ -417,12 +424,13 @@ function JoinPanel() {
       const r = await fetch("/api/usage/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify({ name: trimmed, email: mail }),
       });
       const d = (await r.json()) as { ok?: boolean; error?: string };
       if (!r.ok || !d.ok) throw new Error(d.error ?? `HTTP ${r.status}`);
-      setReqMsg("신청 완료! 운영자 승인 후 키를 전달드릴게요");
+      setReqMsg("신청 완료! 승인되면 이메일로 참가자 키를 보내드려요");
       setName("");
+      setEmail("");
     } catch (e) {
       setReqErr((e as Error).message);
     } finally {
@@ -461,10 +469,11 @@ function JoinPanel() {
         error?: string;
         name?: string;
         key?: string;
+        emailed?: boolean;
       };
       if (!r.ok || !d.ok) throw new Error(d.error ?? `HTTP ${r.status}`);
       if (action === "approve" && d.name && d.key) {
-        setIssued({ name: d.name, key: d.key });
+        setIssued({ name: d.name, key: d.key, emailed: d.emailed });
       }
       await loadReqs(key);
       // 상단 대기 배지 갱신 트리거
@@ -484,18 +493,31 @@ function JoinPanel() {
       {/* 신청 폼 */}
       <div className="rounded-lg border border-neutral-800 bg-black/40 p-4">
         <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-500">
-          $ join-request --name
+          $ join-request --name --email
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <input
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 16))}
-            onKeyDown={(e) => e.key === "Enter" && submitRequest()}
             placeholder="랭킹에 표시될 이름 (1-16자)"
-            className={`${inputCls} min-w-0 flex-1`}
+            className={`${inputCls} w-40 min-w-0 flex-none`}
             aria-label="참여 신청 이름"
           />
-          <button type="button" onClick={submitRequest} disabled={sending || !name.trim()} className={btnCls}>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value.slice(0, 254))}
+            onKeyDown={(e) => e.key === "Enter" && submitRequest()}
+            placeholder="키를 받을 이메일"
+            type="email"
+            className={`${inputCls} min-w-0 flex-1`}
+            aria-label="참여 신청 이메일"
+          />
+          <button
+            type="button"
+            onClick={submitRequest}
+            disabled={sending || !name.trim() || !email.trim()}
+            className={btnCls}
+          >
             {sending ? "전송 중…" : "✋ 참여 신청"}
           </button>
         </div>
@@ -541,7 +563,12 @@ function JoinPanel() {
                   key={r.id}
                   className="flex items-center justify-between gap-2 rounded-lg border border-neutral-800 px-3 py-2"
                 >
-                  <p className="text-xs font-bold text-white">{r.name}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white">{r.name}</p>
+                    {r.email && (
+                      <p className="truncate text-[10px] text-neutral-500">{r.email}</p>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -563,7 +590,12 @@ function JoinPanel() {
             {issued && (
               <div className="rounded-lg border border-white/50 bg-white/[0.06] p-3">
                 <p className="text-[10px] text-neutral-500">
-                  // {issued.name} 키 — 이 화면에서 한 번만 표시됨, 복사 후 전달:
+                  // {issued.name} 키 —{" "}
+                  {issued.emailed ? (
+                    <span className="font-bold text-white">이메일 발송 완료 ✉️</span>
+                  ) : (
+                    "이메일 미발송 (RESEND_API_KEY 미설정) — 아래 키를 직접 전달:"
+                  )}
                 </p>
                 <p className="mt-1 break-all font-bold text-white">{issued.key}</p>
               </div>

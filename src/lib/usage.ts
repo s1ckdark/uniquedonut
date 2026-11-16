@@ -294,6 +294,18 @@ export function validateParticipantName(input: unknown): string | null {
   return trimmed;
 }
 
+const EMAIL_RE =
+  /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+
+/** 신청 이메일 규칙: 최소 형식 + 길이 상한(254) — 소문자로 정규화해 반환. */
+export function validateEmail(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim().toLowerCase();
+  if (trimmed.length > 254) return null;
+  if (!EMAIL_RE.test(trimmed)) return null;
+  return trimmed;
+}
+
 export interface ParticipantSummary {
   name: string;
   lastSync: string;

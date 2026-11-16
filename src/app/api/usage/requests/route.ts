@@ -1,13 +1,16 @@
-import { validateParticipantName } from "@/lib/usage";
+import { validateEmail, validateParticipantName } from "@/lib/usage";
 import { bearerOf, getDb, getMasterKey } from "@/lib/usage-d1";
 
-// Join-request queue: anyone can request a league spot by name (public);
-// the owner (master key) lists/approves/denies. Approving issues the
-// participant key — returned exactly once, only to the owner.
+// Join-request queue: anyone can request a league spot by name + email
+// (public); the owner (master key) lists/approves/denies. Approving
+// issues the participant key — emailed to the requester when RESEND_API_KEY
+// + EMAIL_FROM are configured, and returned exactly once to the owner.
 
 export const dynamic = "force-dynamic";
 
 const MAX_PENDING = 20;
+const BOARD_URL = "https://uniquedonut.s1ckdark.workers.dev/usage";
+const AGENT_URL = "https://uniquedonut.s1ckdark.workers.dev/tokenholic-agent.mjs";
 
 interface RequestRow {
   id: number;
@@ -15,6 +18,47 @@ interface RequestRow {
   status: string;
   created_at: string;
   decided_at: string | null;
+  email: string | null;
+}
+
+/** Approve 시 참가자 키를 이메일로 발송 — Resend 설정이 없으면 false. */
+async function emailKey(to: string, name: string, key: string): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) return false;
+  const subject = "[TOKENHOLIC] 참가자 키가 도착했어요 🔑";
+  const text = [
+    `TOKENHOLIC 리그 참가가 승인되었습니다!`,
+    ``,
+    `이름: ${name}`,
+    `참가자 키: ${key}`,
+    ``,
+    `설치 (macOS/Linux, Node 18+):`,
+    `curl -fsSL ${AGENT_URL} -o /tmp/tokenholic-agent.mjs`,
+    `node /tmp/tokenholic-agent.mjs install ${key}`,
+    ``,
+    `그다음 ~/.tokenholic/collect.sh 를 본인 사용량 스냅샷 JSON을`,
+    `stdout으로 출력하게 수정하면 매일 자정 자동으로 랭킹에 반영됩니다.`,
+    `보드: ${BOARD_URL}`,
+  ].join("\n");
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        text,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function isAdmin(request: Request): Promise<boolean> {
@@ -38,7 +82,7 @@ export async function GET(request: Request) {
     const db = await getDb();
     const { results } = await db
       .prepare(
-        "SELECT id, name, status, created_at, decided_at FROM usage_requests ORDER BY id DESC LIMIT 50",
+        "SELECT id, name, status, created_at, decided_at, email FROM usage_requests ORDER BY id DESC LIMIT 50",
       )
       .all<RequestRow>();
     return Response.json({ requests: results });
@@ -72,6 +116,13 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const email = validateEmail(body.email);
+    if (!email) {
+      return Response.json(
+        { error: "invalid email (키를 받을 이메일이 필요해요)" },
+        { status: 400 },
+      );
+    }
     try {
       const db = await getDb();
       const taken = await db
@@ -98,8 +149,8 @@ export async function POST(request: Request) {
         );
       }
       await db
-        .prepare("INSERT INTO usage_requests (name) VALUES (?)")
-        .bind(name)
+        .prepare("INSERT INTO usage_requests (name, email) VALUES (?, ?)")
+        .bind(name, email)
         .run();
       return Response.json({ ok: true, name });
     } catch (err) {
@@ -129,9 +180,9 @@ export async function POST(request: Request) {
   try {
     const db = await getDb();
     const req = await db
-      .prepare("SELECT id, name, status FROM usage_requests WHERE id = ?")
+      .prepare("SELECT id, name, status, email FROM usage_requests WHERE id = ?")
       .bind(id)
-      .first<{ id: number; name: string; status: string }>();
+      .first<{ id: number; name: string; status: string; email: string | null }>();
     if (!req) {
       return Response.json({ error: "request not found" }, { status: 404 });
     }
@@ -173,8 +224,11 @@ export async function POST(request: Request) {
       )
       .bind(id)
       .run();
-    // Returned exactly once — hand it to the requester.
-    return Response.json({ ok: true, action, id, name, key });
+    // 이메일 발송 (Resend 미설정이면 false — 패널에 키를 직접 표시)
+    const emailed =
+      req.email !== null ? await emailKey(req.email, name, key) : false;
+    // Returned exactly once — hand it to the owner as a fallback channel.
+    return Response.json({ ok: true, action, id, name, key, emailed });
   } catch (err) {
     return Response.json(
       { error: `request decide failed: ${(err as Error).message}` },
