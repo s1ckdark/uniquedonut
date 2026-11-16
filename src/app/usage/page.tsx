@@ -131,6 +131,141 @@ function TrendChart({ days }: { days: Array<{ day: string; tokens: number }> }) 
   );
 }
 
+/** KST 기준 오늘 YYYY-MM-DD — 스냅샷 날짜 체계(한국 시간)와 맞춘다 */
+function kstToday(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** YYYY-MM-DD를 delta일만큼 이동 */
+function shiftDay(day: string, delta: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+/** 요일 라벨 — Date.getUTCDay()(0=일)를 DOW_LABELS(1=월) 체계로 변환 */
+function weekdayKo(day: string): string {
+  const js = new Date(`${day}T00:00:00Z`).getUTCDay();
+  return DOW_LABELS[js === 0 ? 7 : js];
+}
+
+/** 1일(당일) 뷰 — 날짜를 좌우로 옮겨 하루 총액을 확인. 당일은 업로드 전이면 준비 중 표시 */
+function DayNavigator({ snapshot }: { snapshot: UsageSnapshot }) {
+  const [navDay, setNavDay] = useState<string>(() => kstToday());
+  const sorted = useMemo(
+    () => [...snapshot.daily].sort((a, b) => a.day.localeCompare(b.day)),
+    [snapshot],
+  );
+  const point = sorted.find((d) => d.day === navDay);
+  const prev = useMemo(
+    () => sorted.filter((d) => d.day < navDay).at(-1),
+    [sorted, navDay],
+  );
+  const today = kstToday();
+  const isTodayOrFuture = navDay >= today;
+  const weekday = weekdayKo(navDay);
+  const deltaPct =
+    point && prev && prev.tokens > 0
+      ? ((point.tokens - prev.tokens) / prev.tokens) * 100
+      : null;
+
+  const arrowCls =
+    "rounded-full border border-neutral-800 px-4 py-1.5 text-xs font-bold text-neutral-300 transition hover:border-neutral-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-neutral-800 disabled:hover:text-neutral-300 cursor-pointer";
+
+  return (
+    <div className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+      <div className="flex items-center justify-between gap-4">
+        <button
+          type="button"
+          aria-label="하루 전으로 이동"
+          disabled={navDay <= snapshot.firstDay}
+          onClick={() => setNavDay((d) => shiftDay(d, -1))}
+          className={arrowCls}
+        >
+          ← 하루 전
+        </button>
+        <p className="text-base font-black text-white md:text-lg">
+          {navDay}
+          <span className="ml-2 text-sm font-bold text-neutral-500">
+            ({weekday})
+          </span>
+          {navDay === today && (
+            <span className="ml-2 rounded-full border border-neutral-700 px-2 py-0.5 align-middle text-[10px] font-bold text-neutral-400">
+              오늘
+            </span>
+          )}
+        </p>
+        <button
+          type="button"
+          aria-label="다음날로 이동"
+          disabled={isTodayOrFuture}
+          onClick={() => setNavDay((d) => shiftDay(d, +1))}
+          className={arrowCls}
+        >
+          다음날 →
+        </button>
+      </div>
+
+      {point ? (
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-2">
+          <p className="text-2xl font-black text-white md:text-3xl">
+            {fmtTokens(point.tokens)}
+            <span className="ml-2 text-sm text-neutral-500">tokens</span>
+            {deltaPct !== null && (
+              <span className="ml-2 rounded-full border border-neutral-700 px-2 py-0.5 align-middle text-xs font-bold text-neutral-400">
+                {deltaPct >= 0 ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(0)}%
+              </span>
+            )}
+          </p>
+          <p className="text-lg font-black text-white md:text-xl">
+            {fmtUsd(point.usd)}
+            <span className="ml-2 text-xs font-bold text-neutral-500">
+              est. spend
+            </span>
+            {point.usd !== null && !point.costComplete && (
+              <span className="ml-2 text-xs font-bold text-neutral-500">
+                (부분 합계)
+              </span>
+            )}
+          </p>
+          {prev && (
+            <p className="w-full text-[11px] text-neutral-600">
+              전일 {prev.day} — {fmtTokens(prev.tokens)} 토큰 ·{" "}
+              {fmtUsd(prev.usd)}
+            </p>
+          )}
+        </div>
+      ) : navDay > snapshot.lastDay ? (
+        <div className="mt-5 rounded-lg border border-dashed border-neutral-800 px-4 py-6 text-center">
+          <p className="text-sm font-bold text-neutral-300">
+            ⏳ 데이터 준비 중
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-neutral-600">
+            당일 사용량은 매일 자정(한국 시간)에 자동으로 올라와요
+            <br />
+            마지막 확정 데이터 — {snapshot.lastDay}
+          </p>
+          <button
+            type="button"
+            onClick={() => setNavDay(snapshot.lastDay)}
+            className="mt-3 rounded-full border border-neutral-700 px-4 py-1.5 text-xs font-bold text-neutral-300 transition hover:border-neutral-500 hover:text-white cursor-pointer"
+          >
+            ← {snapshot.lastDay} 총액 보기
+          </button>
+        </div>
+      ) : navDay < snapshot.firstDay ? (
+        <p className="mt-5 text-center text-xs text-neutral-600">
+          {snapshot.firstDay} 이전 날짜는 수집되지 않았어요
+        </p>
+      ) : (
+        <p className="mt-5 text-center text-xs text-neutral-600">
+          이 날짜는 수집 공백 구간이에요 — 좌우 화살표로 이동해 보세요
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2
@@ -543,12 +678,20 @@ export default function UsagePage() {
                   </>
                 )}
 
-                {gran === "day" && (
+                {gran === "day" && period === "d1" && (
                   <>
                     <p className="mt-1 text-xs text-neutral-600">
-                      {periodDaily.length === 1
-                        ? "가장 최근 하루의 정확한 사용량"
-                        : `선택 기간 ${periodDaily.length}일 — 아래 목록에서 날짜별 정확한 값 확인`}
+                      하루 총액 — 화살표로 날짜를 이동해 확인 · 당일은 매일
+                      자정(한국 시간) 업로드 예정
+                    </p>
+                    <DayNavigator snapshot={snapshot} />
+                  </>
+                )}
+
+                {gran === "day" && period !== "d1" && (
+                  <>
+                    <p className="mt-1 text-xs text-neutral-600">
+                      {`선택 기간 ${periodDaily.length}일 — 아래 목록에서 날짜별 정확한 값 확인`}
                     </p>
                     <TrendChart days={periodDaily} />
                     <div className="mt-1 flex justify-between text-[10px] text-neutral-600">
