@@ -38,6 +38,13 @@ const BOOTSTRAP_STATEMENTS = [
     synced_at TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS usage_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    decided_at TEXT
+  )`,
 ];
 
 export async function getDb(): Promise<D1Database> {
