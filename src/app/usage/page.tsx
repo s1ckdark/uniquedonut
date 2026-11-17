@@ -842,6 +842,7 @@ export default function UsagePage() {
   const [viewing, setViewing] = useState<string | null>("dave");
   const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("day");
   const [anchorDay, setAnchorDay] = useState<string>("");
+  const [leagueDay, setLeagueDay] = useState<string>(""); // "" = 기준일(최신)
   const [leagueMonth, setLeagueMonth] = useState<string>(() => {
     // 현재(KST) 월을 기본 선택 — 현재 날짜를 포함한 달
     return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
@@ -884,6 +885,17 @@ export default function UsagePage() {
     [league, leaguePeriod, leagueMonth],
   );
 
+  // 일간 이동 범위: 최소 = 가장 이른 달의 1일, 최대 = 기준일(최신 완결일)
+  const displayDay = leagueDay || anchorDay;
+  const minLeagueDay = useMemo(() => {
+    const earliest = league.reduce(
+      (min, e) => (e.months.length > 0 && e.months[0].month < min ? e.months[0].month : min),
+      "9999-99",
+    );
+    return earliest === "9999-99" ? displayDay : `${earliest}-01`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [league]);
+
   /** 랭킹 행 클릭 → 그 참가자의 상세 보드로 (차트+작품이 그 사람 데이터로). */
   const selectParticipant = useCallback(async (name: string) => {
     try {
@@ -916,6 +928,22 @@ export default function UsagePage() {
   const backToOverview = useCallback(() => {
     setViewing(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  /** 일간 랭킹 날짜 이동 — 리그만 갱신(보고 있는 보드는 그대로). ""이면 최신. */
+  const fetchLeagueDay = useCallback(async (day: string) => {
+    setLeagueDay(day);
+    try {
+      const r = await fetch(
+        `/api/usage/league${day ? `?day=${day}` : ""}`,
+      );
+      if (!r.ok) return;
+      const d = (await r.json()) as { anchorDay?: string; league?: LeagueEntry[] };
+      if (d.anchorDay) setAnchorDay(d.anchorDay);
+      if (d.league) setLeague(d.league);
+    } catch {
+      // 이동 실패 — 현재 리그 유지
+    }
   }, []);
 
   // 운영자 세션이 살아 있으면 대기 신청 수를 상단 배지에 띄운다.
@@ -1240,15 +1268,61 @@ export default function UsagePage() {
                       </div>
                     </div>
                   </div>
-                  <p className="mt-2 text-[10px] text-neutral-600">
-                    {leaguePeriod === "day" &&
-                      `// 모두 같은 날 비교 — 기준일 ${anchorDay || "…"}`}
-                    {leaguePeriod === "week" &&
-                      league.length > 0 &&
-                      `// 모두 같은 기간 비교 — ${league[0].week.from} ~ ${league[0].week.to}`}
-                    {leaguePeriod === "month" &&
-                      `// 달력 월별 비교 — ${leagueMonth} (진행 중인 달 포함)`}
-                  </p>
+                  {leaguePeriod === "day" ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        aria-label="하루 전 날짜로"
+                        disabled={!displayDay || displayDay <= minLeagueDay}
+                        onClick={() => fetchLeagueDay(shiftDay(displayDay, -1))}
+                        className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs font-bold text-neutral-300 transition hover:border-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:border-neutral-700 cursor-pointer"
+                      >
+                        ‹
+                      </button>
+                      <p className="text-xs font-bold text-white">
+                        {displayDay || "…"}
+                        {displayDay && (
+                          <span className="ml-1.5 text-neutral-500">
+                            ({weekdayKo(displayDay)})
+                          </span>
+                        )}
+                        {leagueDay === "" && (
+                          <span className="ml-1.5 rounded-full border border-neutral-700 px-1.5 py-0.5 text-[9px] font-bold text-neutral-400">
+                            최신
+                          </span>
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        aria-label="다음날 날짜로"
+                        disabled={leagueDay === "" || !anchorDay || leagueDay >= anchorDay}
+                        onClick={() => fetchLeagueDay(shiftDay(displayDay, 1))}
+                        className="rounded-md border border-neutral-700 px-2.5 py-1 text-xs font-bold text-neutral-300 transition hover:border-neutral-400 hover:text-white disabled:opacity-30 disabled:hover:border-neutral-700 cursor-pointer"
+                      >
+                        ›
+                      </button>
+                      {leagueDay !== "" && leagueDay < anchorDay && (
+                        <button
+                          type="button"
+                          onClick={() => fetchLeagueDay("")}
+                          className="text-[10px] font-bold text-neutral-500 underline transition hover:text-white cursor-pointer"
+                        >
+                          최신({anchorDay})으로
+                        </button>
+                      )}
+                      <span className="text-[10px] text-neutral-600">
+                        // 모두 같은 날 비교
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[10px] text-neutral-600">
+                      {leaguePeriod === "week" &&
+                        league.length > 0 &&
+                        `// 모두 같은 기간 비교 — ${league[0].week.from} ~ ${league[0].week.to}`}
+                      {leaguePeriod === "month" &&
+                        `// 달력 월별 비교 — ${leagueMonth} (진행 중인 달 포함)`}
+                    </p>
+                  )}
                   <div className="mt-3 space-y-2">
                     {rankedLeague.map((p) => {
                       const monthAgg =

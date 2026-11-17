@@ -3,6 +3,7 @@
 // (needs the Cloudflare runtime); pure logic lives in ./usage.
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { validateUsageSnapshot, type UsageSnapshot } from "./usage";
 
 // Minimal local types — avoids a @cloudflare/workers-types dependency.
 interface D1Result<T> {
@@ -121,4 +122,57 @@ export function bearerOf(request: Request): string | null {
   const prefix = "Bearer ";
   if (!header.startsWith(prefix)) return null;
   return header.slice(prefix.length);
+}
+
+// ---------- stored board readers (usage 라우트들 공용) ----------
+
+export interface StoredBoard {
+  participant: string;
+  snapshot: UsageSnapshot;
+  storedAt: string;
+}
+
+export async function readAllBoards(
+  db: D1Database,
+): Promise<StoredBoard[]> {
+  const { results } = await db
+    .prepare("SELECT participant, payload, synced_at FROM usage_snapshots")
+    .all<{ participant: string; payload: string; synced_at: string }>();
+  const boards: StoredBoard[] = [];
+  for (const row of results) {
+    try {
+      const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
+      if (snapshot) {
+        boards.push({ participant: row.participant, snapshot, storedAt: row.synced_at });
+      }
+    } catch {
+      // skip malformed rows (shouldn't happen — POST validates before write)
+    }
+  }
+  return boards;
+}
+
+/** 레거시 단일 행 폴백: 리그 이전 usage_board 행은 "dave"로 읽힌다. */
+export async function readLegacyBoard(
+  db: D1Database,
+): Promise<StoredBoard | null> {
+  const row = await db
+    .prepare("SELECT payload, synced_at FROM usage_board WHERE id = 1")
+    .first<{ payload: string; synced_at: string }>();
+  if (!row) return null;
+  try {
+    const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
+    if (!snapshot) return null;
+    return { participant: "dave", snapshot, storedAt: row.synced_at };
+  } catch {
+    return null;
+  }
+}
+
+/** 리그 계산용 전체 보드(레거시 dave 폴백 포함). */
+export async function readLeagueBoards(db: D1Database): Promise<StoredBoard[]> {
+  const boards = await readAllBoards(db);
+  if (boards.some((b) => b.participant === "dave")) return boards;
+  const legacy = await readLegacyBoard(db);
+  return legacy ? [...boards, legacy] : boards;
 }

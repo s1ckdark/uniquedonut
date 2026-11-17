@@ -7,7 +7,13 @@ import {
   type LeagueEntry,
   type UsageSnapshot,
 } from "@/lib/usage";
-import { bearerOf, getDb, resolveParticipant } from "@/lib/usage-d1";
+import {
+  bearerOf,
+  getDb,
+  readAllBoards,
+  readLegacyBoard,
+  resolveParticipant,
+} from "@/lib/usage-d1";
 
 // Usage league API (WakaTime model): each participant pushes their own
 // aggregated snapshot nightly with a personal bearer key. The master key
@@ -16,53 +22,8 @@ import { bearerOf, getDb, resolveParticipant } from "@/lib/usage-d1";
 
 export const dynamic = "force-dynamic";
 
-interface SnapshotRow {
-  participant: string;
-  payload: string;
-  synced_at: string;
-}
-
 const MAX_PAYLOAD_CHARS = 512_000;
-
-interface StoredBoard {
-  participant: string;
-  snapshot: UsageSnapshot;
-  storedAt: string;
-}
-
-async function readAllBoards(db: Awaited<ReturnType<typeof getDb>>): Promise<StoredBoard[]> {
-  const { results } = await db
-    .prepare("SELECT participant, payload, synced_at FROM usage_snapshots")
-    .all<SnapshotRow>();
-  const boards: StoredBoard[] = [];
-  for (const row of results) {
-    try {
-      const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
-      if (snapshot) {
-        boards.push({ participant: row.participant, snapshot, storedAt: row.synced_at });
-      }
-    } catch {
-      // skip malformed rows (shouldn't happen — POST validates before write)
-    }
-  }
-  return boards;
-}
-
-/** Legacy single-row fallback: the pre-league `usage_board` row reads as
- *  "dave" until the first push lands in the new table. */
-async function readLegacyBoard(db: Awaited<ReturnType<typeof getDb>>): Promise<StoredBoard | null> {
-  const row = await db
-    .prepare("SELECT payload, synced_at FROM usage_board WHERE id = 1")
-    .first<{ payload: string; synced_at: string }>();
-  if (!row) return null;
-  try {
-    const snapshot = validateUsageSnapshot(JSON.parse(row.payload));
-    if (!snapshot) return null;
-    return { participant: "dave", snapshot, storedAt: row.synced_at };
-  } catch {
-    return null;
-  }
-}
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(request: Request) {
   try {
@@ -88,8 +49,12 @@ export async function GET(request: Request) {
         ? [...boards, daveBoard]
         : boards;
     // 공통 기준 리그 지표 — 같은 날/같은 7일 창/달력 월로 비교
+    // (?leagueDay=YYYY-MM-DD 면 일간 축을 그 날짜로 이동해 반환)
+    const rawDay = new URL(request.url).searchParams.get("leagueDay");
+    const dayOverride = rawDay && DAY_RE.test(rawDay) ? rawDay : undefined;
     const { anchorDay, metrics } = computeLeagueMetrics(
       leagueBoards.map((b) => ({ name: b.participant, snapshot: b.snapshot })),
+      dayOverride,
     );
     const league: LeagueEntry[] = leagueBoards.flatMap((b) => {
       const m = metrics.get(b.participant);

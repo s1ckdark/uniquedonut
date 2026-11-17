@@ -410,6 +410,26 @@ test("computeLeagueMetrics: common anchor day + fixed week window + months", () 
   assert.equal(jy.months[1].tokens, 30);
 });
 
+test("computeLeagueMetrics: dayOverride moves the day axis to the requested date", () => {
+  const mkDay = (day: string, tokens: number, usd = tokens * 0.01) => ({
+    day, tokens, usd, costComplete: true,
+  });
+  const snap: UsageSnapshot = {
+    ...BASE,
+    syncedAt: "2026-11-17T00:00:40+09:00",
+    daily: [mkDay("2026-11-10", 100), mkDay("2026-11-15", 200), mkDay("2026-11-16", 300), mkDay("2026-11-17", 0)],
+  };
+  const { anchorDay, metrics } = computeLeagueMetrics(
+    [{ name: "dave", snapshot: snap }],
+    "2026-11-10",
+  );
+  assert.equal(anchorDay, "2026-11-16"); // 앵커(최신)는 그대로
+  const m = metrics.get("dave")!;
+  assert.equal(m.day.date, "2026-11-10"); // 일간 축만 이동
+  assert.equal(m.day.tokens, 100);
+  assert.equal(m.week.to, "2026-11-16"); // 주간은 앵커 유지
+});
+
 test("rankLeague: same-day/same-window/same-month comparison", () => {
   const entry = (name: string, over: object) => ({
     ...SUM_BASE,

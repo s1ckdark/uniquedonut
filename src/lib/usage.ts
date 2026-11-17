@@ -460,9 +460,11 @@ export interface LeagueEntryMetrics {
  * 리그 공통 지표 — 앵커는 "모든 참가자의 마지막 완결일 중 최대"라
  * 일간·주간이 모두 같은 날/기간으로 비교된다. 앵커 날 데이터가 없는
  * 참가자는 0으로 들어간다(그날 안 태운/미보고 것도 공정 비교).
+ * dayOverride를 주면 일간 축을 그 날짜로 이동해 본다(주간·월간은 앵커 그대로).
  */
 export function computeLeagueMetrics(
   boards: Array<{ name: string; snapshot: UsageSnapshot }>,
+  dayOverride?: string,
 ): { anchorDay: string; metrics: Map<string, LeagueEntryMetrics> } {
   const DAY_MS = 86_400_000;
 
@@ -488,8 +490,9 @@ export function computeLeagueMetrics(
 
   // 2) 참가자별: 앵커 당일 / 고정 7일 창 / 월별 집계
   const metrics = new Map<string, LeagueEntryMetrics>();
+  const dayDate = dayOverride ?? anchor;
   for (const { name, sorted } of prepared) {
-    const dayRow = sorted.find((p) => p.day === anchor);
+    const dayRow = sorted.find((p) => p.day === dayDate);
     const weekRows = sorted.filter((p) => p.day >= from && p.day <= anchor);
     const byMonth = new Map<string, { tokens: number; usd: number }>();
     for (const p of sorted) {
@@ -500,7 +503,7 @@ export function computeLeagueMetrics(
       byMonth.set(m, agg);
     }
     metrics.set(name, {
-      day: { date: anchor, tokens: dayRow?.tokens ?? 0, usd: dayRow?.usd ?? null },
+      day: { date: dayDate, tokens: dayRow?.tokens ?? 0, usd: dayRow?.usd ?? null },
       week: {
         from,
         to: anchor,
