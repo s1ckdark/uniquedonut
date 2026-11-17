@@ -840,7 +840,7 @@ export default function UsagePage() {
   const [report, setReport] = useState<DailyReport | null>(null);
   const [league, setLeague] = useState<LeagueEntry[]>([]);
   const [viewing, setViewing] = useState<string | null>("dave");
-  const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("month");
+  const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("day");
   const [anchorDay, setAnchorDay] = useState<string>("");
   const [leagueMonth, setLeagueMonth] = useState<string>(() => {
     // 현재(KST) 월을 기본 선택 — 현재 날짜를 포함한 달
