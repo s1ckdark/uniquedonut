@@ -635,9 +635,14 @@ interface ProjectRow {
   created_at: string;
 }
 
-function BurnProjects() {
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [showForm, setShowForm] = useState(false);
+function BurnProjects({
+  projects,
+  reload,
+}: {
+  projects: ProjectRow[];
+  reload: () => Promise<void>;
+}) {
+  const [showForm, setShowForm] = useState(projects.length === 0);
   const [memberKey, setMemberKey] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -647,22 +652,10 @@ function BurnProjects() {
   const [err, setErr] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch("/api/usage/projects");
-      if (!r.ok) return;
-      const d = (await r.json()) as { projects: ProjectRow[] };
-      setProjects(d.projects ?? []);
-    } catch {
-      // 조용히
-    }
-  }, []);
-
   useEffect(() => {
-    void load();
     const saved = sessionStorage.getItem("tokenholic-member-key");
     if (saved) setMemberKey(saved);
-  }, [load]);
+  }, []);
 
   async function register() {
     if (!title.trim() || !memberKey.trim()) return;
@@ -691,7 +684,7 @@ function BurnProjects() {
       setUrl("");
       setRepo("");
       setDesc("");
-      await load();
+      await reload();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -740,14 +733,14 @@ function BurnProjects() {
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value.slice(0, 300))}
-              placeholder="https:// 서비스 링크 (선택)"
+              placeholder="https:// 서비스 링크 (둘 중 하나 필수)"
               className={`${inputCls} min-w-0 flex-1`}
               aria-label="프로젝트 링크"
             />
             <input
               value={repo}
               onChange={(e) => setRepo(e.target.value.slice(0, 300))}
-              placeholder="https:// 저장소 (선택)"
+              placeholder="https:// 저장소·GitHub (둘 중 하나 필수)"
               className={`${inputCls} min-w-0 flex-1`}
               aria-label="프로젝트 저장소"
             />
@@ -763,7 +756,9 @@ function BurnProjects() {
           <button
             type="button"
             onClick={register}
-            disabled={sending || !title.trim() || !memberKey.trim()}
+            disabled={
+              sending || !title.trim() || !memberKey.trim() || (!url.trim() && !repo.trim())
+            }
             className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black transition hover:opacity-80 disabled:opacity-40 cursor-pointer"
           >
             {sending ? "등록 중…" : "🚀 등록"}
@@ -847,6 +842,23 @@ export default function UsagePage() {
   const [gran, setGran] = useState<Granularity>("day");
   const [period, setPeriod] = useState<Period>("m1");
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [tab, setTab] = useState<"board" | "projects">("board");
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const r = await fetch("/api/usage/projects");
+      if (!r.ok) return;
+      const d = (await r.json()) as { projects: ProjectRow[] };
+      setProjects(d.projects ?? []);
+    } catch {
+      // 갤러리는 부가 기능 — 조용히 실패
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
 
   const rankedLeague = useMemo(
     () => rankParticipants(league, leaguePeriod),
@@ -1069,8 +1081,40 @@ export default function UsagePage() {
           </div>
         </header>
 
-        {/* 타 참가자 보드를 보는 중 — 내 보드로 돌아가기 */}
-        {state === "ready" && viewing !== "dave" && (
+        {/* 최상위 탭 — 보드 / 작품 갤러리 */}
+        <div className="mt-6 flex items-center gap-2">
+          {([
+            { key: "board", label: "📊 보드" },
+            { key: "projects", label: `🔥 작품${projects.length > 0 ? ` ${projects.length}` : ""}` },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`rounded-lg border px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                tab === t.key
+                  ? "border-white bg-white text-black"
+                  : "border-neutral-800 text-neutral-500 hover:border-neutral-500 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ---------- 작품 갤러리 탭 ---------- */}
+        {tab === "projects" && (
+          <section className="mt-8 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+            <SectionTitle>태워서 만든 것들 burn-projects</SectionTitle>
+            <p className="mt-1 text-xs text-neutral-600">
+              토큰으로 만든 사이드 프로젝트의 전시장 — 서비스 링크나 저장소와 함께
+            </p>
+            <BurnProjects projects={projects} reload={loadProjects} />
+          </section>
+        )}
+
+        {/* ---------- 보드 탭 ---------- */}
+        {tab === "board" && state === "ready" && viewing !== "dave" && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/40 bg-white/[0.06] px-4 py-3">
             <p className="text-xs font-bold text-white">
               👤 <b className="text-sm">{viewing}</b>의 보드를 보고 있어요 — 아래
@@ -1086,19 +1130,19 @@ export default function UsagePage() {
           </div>
         )}
 
-        {state === "loading" && (
+        {tab === "board" && state === "loading" && (
           <p className="mt-12 text-center text-sm text-neutral-600">
             $ loading<span className="animate-cursor">▊</span>
           </p>
         )}
 
-        {state === "error" && (
+        {tab === "board" && state === "error" && (
           <p className="mt-12 text-center text-sm text-red-400">
             fetch failed: {error}
           </p>
         )}
 
-        {state === "empty" && (
+        {tab === "board" && state === "empty" && (
           <div className="mt-12 rounded-xl border border-dashed border-neutral-800 p-10 text-center">
             <p className="text-4xl">🛰️</p>
             <p className="mt-4 text-sm font-bold text-neutral-300">
@@ -1110,7 +1154,7 @@ export default function UsagePage() {
           </div>
         )}
 
-        {state === "ready" && snapshot && (
+        {tab === "board" && state === "ready" && snapshot && (
           <>
             {/* ---------- sync header + totals ---------- */}
             <Reveal>
@@ -1290,14 +1334,6 @@ export default function UsagePage() {
                 </section>
               </Reveal>
             )}
-
-            {/* ---------- burn projects gallery ---------- */}
-            <Reveal>
-              <section className="mt-10 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
-                <SectionTitle>태워서 만든 것들 burn-projects</SectionTitle>
-                <BurnProjects />
-              </section>
-            </Reveal>
 
             {/* ---------- calendar heatmap ---------- */}
             <Reveal>

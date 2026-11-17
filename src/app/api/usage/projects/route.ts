@@ -67,6 +67,13 @@ export async function POST(request: Request) {
   if (body.repo !== undefined && body.repo !== null && body.repo !== "" && !repo) {
     return Response.json({ error: "invalid repo url" }, { status: 400 });
   }
+  // 사이드 프로젝트는 증명이 필요 — 서비스 링크나 저장소 중 하나는 필수
+  if (!url && !repo) {
+    return Response.json(
+      { error: "서비스 링크나 저장소(GitHub 등) 중 하나는 꼭 등록해주세요" },
+      { status: 400 },
+    );
+  }
   try {
     const db = await getDb();
     const who = await resolveParticipant(db, bearer);
