@@ -635,6 +635,56 @@ interface ProjectRow {
   created_at: string;
 }
 
+/** 작품 카드 그리드 — 갤러리 탭과 개인 상세 보드 양쪽에서 재사용. */
+function ProjectGrid({ items }: { items: ProjectRow[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {items.map((p) => (
+        <div
+          key={p.id}
+          className="rounded-lg border border-neutral-800 bg-black/40 p-4 transition hover:border-neutral-500"
+        >
+          <p className="text-sm font-bold text-white">
+            {p.url ? (
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                {p.title} ↗
+              </a>
+            ) : (
+              p.title
+            )}
+          </p>
+          {p.description && (
+            <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
+              {p.description}
+            </p>
+          )}
+          <p className="mt-2 flex items-center gap-2 text-[10px] text-neutral-600">
+            <span className="rounded-full border border-neutral-800 px-2 py-0.5 font-bold text-neutral-400">
+              by {p.participant}
+            </span>
+            {p.repo && (
+              <a
+                href={p.repo}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white"
+              >
+                repo ↗
+              </a>
+            )}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function BurnProjects({
   projects,
   reload,
@@ -768,51 +818,7 @@ function BurnProjects({
         </div>
       )}
 
-      {projects.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {projects.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-lg border border-neutral-800 bg-black/40 p-4 transition hover:border-neutral-500"
-            >
-              <p className="text-sm font-bold text-white">
-                {p.url ? (
-                  <a
-                    href={p.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                  >
-                    {p.title} ↗
-                  </a>
-                ) : (
-                  p.title
-                )}
-              </p>
-              {p.description && (
-                <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
-                  {p.description}
-                </p>
-              )}
-              <p className="mt-2 flex items-center gap-2 text-[10px] text-neutral-600">
-                <span className="rounded-full border border-neutral-800 px-2 py-0.5 font-bold text-neutral-400">
-                  by {p.participant}
-                </span>
-                {p.repo && (
-                  <a
-                    href={p.repo}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-white"
-                  >
-                    repo ↗
-                  </a>
-                )}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
+      <ProjectGrid items={projects} />
     </div>
   );
 }
@@ -833,7 +839,7 @@ export default function UsagePage() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [report, setReport] = useState<DailyReport | null>(null);
   const [league, setLeague] = useState<ParticipantSummary[]>([]);
-  const [viewing, setViewing] = useState<string>("dave");
+  const [viewing, setViewing] = useState<string | null>("dave");
   const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("month");
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">(
     "loading",
@@ -866,6 +872,7 @@ export default function UsagePage() {
   );
 
   /** 랭킹 행 클릭 → 그 참가자의 보드로 전환 (모든 차트가 그 사람 데이터로). */
+  /** 랭킹 행 클릭 → 그 참가자의 상세 보드로 (차트+작품이 그 사람 데이터로). */
   const selectParticipant = useCallback(async (name: string) => {
     try {
       const r = await fetch(
@@ -890,6 +897,12 @@ export default function UsagePage() {
       // 전환 실패 — 현재 보드 유지
     }
   }, [league]);
+
+  /** 상세 → 리그 개요로 돌아가기. */
+  const backToOverview = useCallback(() => {
+    setViewing(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   // 운영자 세션이 살아 있으면 대기 신청 수를 상단 배지에 띄운다.
   // JoinPanel 승인/거절 이벤트 + 15초 폴링(탭이 보일 때만) + 포커스 시 갱신 —
@@ -943,7 +956,10 @@ export default function UsagePage() {
       .then((data) => {
         if (cancelled) return;
         setLeague(data.league ?? []);
-        setViewing(data.viewing ?? "dave");
+        // 참가자가 2명 이상이면 개요(리그)부터 보여주고, 혼자면 곧바로 상세
+        setViewing(
+          (data.league ?? []).length > 1 ? null : (data.viewing ?? "dave"),
+        );
         if (data.snapshot) {
           setSnapshot(data.snapshot);
           setReport(data.report ?? null);
@@ -1114,20 +1130,27 @@ export default function UsagePage() {
         )}
 
         {/* ---------- 보드 탭 ---------- */}
-        {tab === "board" && state === "ready" && viewing !== "dave" && (
+        {tab === "board" && state === "ready" && viewing !== null && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/40 bg-white/[0.06] px-4 py-3">
             <p className="text-xs font-bold text-white">
-              👤 <b className="text-sm">{viewing}</b>의 보드를 보고 있어요 — 아래
-              차트는 이 사람의 데이터
+              👤 <b className="text-sm">{viewing}</b>
+              {viewing === "dave" ? " (나)" : ""}의 상세 보드 — 차트·작품은 이
+              사람의 데이터
             </p>
             <button
               type="button"
-              onClick={() => selectParticipant("dave")}
+              onClick={backToOverview}
               className="rounded-full bg-white px-4 py-1.5 text-[11px] font-bold text-black transition hover:opacity-80 cursor-pointer"
             >
-              ← 내 보드로
+              ← 리그 개요로
             </button>
           </div>
+        )}
+        {tab === "board" && state === "ready" && viewing === null && (
+          <p className="mt-6 text-center text-xs text-neutral-600">
+            // 랭킹에서 이름을 클릭하면 그 사람의 상세 보드(이용내역 + 작품)로
+            들어갑니다
+          </p>
         )}
 
         {tab === "board" && state === "loading" && (
@@ -1154,97 +1177,12 @@ export default function UsagePage() {
           </div>
         )}
 
-        {tab === "board" && state === "ready" && snapshot && (
+        {tab === "board" && state === "ready" && (
           <>
-            {/* ---------- sync header + totals ---------- */}
-            <Reveal>
-              <section className="mt-8 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-neutral-600">
-                  <span>
-                    마지막 갱신 {syncedKst} · {snapshot.rows.toLocaleString("ko-KR")}행
-                    · 단가 기준 {snapshot.pricingAsOf}
-                  </span>
-                  {snapshot.partial && (
-                    <span className="rounded-full border border-neutral-700 px-3 py-1 font-bold text-neutral-400">
-                      ⚠ 일부 기기 미수집
-                    </span>
-                  )}
-                </div>
-                <div className="mt-6 grid grid-cols-2 gap-6 text-center">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-                      total tokens
-                    </p>
-                    <p className="mt-1 text-3xl font-black text-white">
-                      <CountUp to={snapshot.totalTokens} format={fmtTokens} />
-                    </p>
-                    <p className="mt-1 text-[10px] text-neutral-600">
-                      {snapshot.firstDay} ~ {snapshot.lastDay}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-                      est. spend (api환산)
-                    </p>
-                    <p className="mt-1 text-3xl font-black text-white">
-                      <CountUp to={snapshot.totalUsd} format={(n) => fmtUsd(n)} />
-                    </p>
-                    <p className="mt-1 text-[10px] text-neutral-600">
-                      실제 청구액이 아닌 정가 환산 추정치
-                    </p>
-                  </div>
-                </div>
-              </section>
-            </Reveal>
-
-            {/* ---------- daily report ---------- */}
-            {report && (
-              <Reveal>
-                <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-                    $ cat daily-report.json
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
-                    <p className="text-2xl font-black text-white">
-                      {fmtTokens(report.tokens)}
-                      <span className="ml-2 text-sm text-neutral-500">tokens</span>
-                      {report.deltaPct !== null && (
-                        <span
-                          className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-bold"
-                          style={{
-                            borderColor:
-                              report.deltaPct >= 0 ? "#52525B" : "#3F3F46",
-                            color: report.deltaPct >= 0 ? "#E4E4E7" : "#A1A1AA",
-                          }}
-                        >
-                          {report.deltaPct >= 0 ? "▲" : "▼"}{" "}
-                          {Math.abs(report.deltaPct).toFixed(0)}%
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-neutral-400">
-                      {report.day} · {fmtUsd(report.usd)}
-                      {!report.costComplete && " (부분 합계)"}
-                    </p>
-                    {report.prev7Avg !== null && (
-                      <p className="text-xs text-neutral-600">
-                        직전 7일 평균 {fmtTokens(report.prev7Avg)}
-                      </p>
-                    )}
-                    {report.topModel && (
-                      <p className="text-sm text-neutral-300">
-                        mvp: <b className="text-white">{report.topModel.model}</b>
-                      </p>
-                    )}
-                  </div>
-                </section>
-              </Reveal>
-            )}
-
-            {/* ---------- league ranking ---------- */}
+            {/* ---------- league ranking — 개요·상세 공통, 맨 위 ---------- */}
             {league.length > 1 && (
               <Reveal>
-                <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                <section className="mt-6 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                       $ rank --sort=usd
@@ -1328,9 +1266,96 @@ export default function UsagePage() {
                     })}
                   </div>
                   <p className="mt-3 text-[10px] text-neutral-600">
-                    행을 클릭하면 그 사람의 보드로 전환 · 공정 축은 환산 비용($)
+                    행을 클릭하면 그 사람의 상세 보드로 · 공정 축은 환산 비용($)
                     — 캐시·집계 편차 때문에 원시 토큰은 참고용
                   </p>
+                </section>
+              </Reveal>
+            )}
+
+            {viewing !== null && snapshot && (
+              <>
+            {/* ---------- sync header + totals ---------- */}
+            <Reveal>
+              <section className="mt-8 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-neutral-600">
+                  <span>
+                    마지막 갱신 {syncedKst} · {snapshot.rows.toLocaleString("ko-KR")}행
+                    · 단가 기준 {snapshot.pricingAsOf}
+                  </span>
+                  {snapshot.partial && (
+                    <span className="rounded-full border border-neutral-700 px-3 py-1 font-bold text-neutral-400">
+                      ⚠ 일부 기기 미수집
+                    </span>
+                  )}
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-6 text-center">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      total tokens
+                    </p>
+                    <p className="mt-1 text-3xl font-black text-white">
+                      <CountUp to={snapshot.totalTokens} format={fmtTokens} />
+                    </p>
+                    <p className="mt-1 text-[10px] text-neutral-600">
+                      {snapshot.firstDay} ~ {snapshot.lastDay}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      est. spend (api환산)
+                    </p>
+                    <p className="mt-1 text-3xl font-black text-white">
+                      <CountUp to={snapshot.totalUsd} format={(n) => fmtUsd(n)} />
+                    </p>
+                    <p className="mt-1 text-[10px] text-neutral-600">
+                      실제 청구액이 아닌 정가 환산 추정치
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </Reveal>
+
+            {/* ---------- daily report ---------- */}
+            {report && (
+              <Reveal>
+                <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                    $ cat daily-report.json
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-3">
+                    <p className="text-2xl font-black text-white">
+                      {fmtTokens(report.tokens)}
+                      <span className="ml-2 text-sm text-neutral-500">tokens</span>
+                      {report.deltaPct !== null && (
+                        <span
+                          className="ml-2 rounded-full border px-2 py-0.5 align-middle text-xs font-bold"
+                          style={{
+                            borderColor:
+                              report.deltaPct >= 0 ? "#52525B" : "#3F3F46",
+                            color: report.deltaPct >= 0 ? "#E4E4E7" : "#A1A1AA",
+                          }}
+                        >
+                          {report.deltaPct >= 0 ? "▲" : "▼"}{" "}
+                          {Math.abs(report.deltaPct).toFixed(0)}%
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-neutral-400">
+                      {report.day} · {fmtUsd(report.usd)}
+                      {!report.costComplete && " (부분 합계)"}
+                    </p>
+                    {report.prev7Avg !== null && (
+                      <p className="text-xs text-neutral-600">
+                        직전 7일 평균 {fmtTokens(report.prev7Avg)}
+                      </p>
+                    )}
+                    {report.topModel && (
+                      <p className="text-sm text-neutral-300">
+                        mvp: <b className="text-white">{report.topModel.model}</b>
+                      </p>
+                    )}
+                  </div>
                 </section>
               </Reveal>
             )}
@@ -1619,6 +1644,24 @@ export default function UsagePage() {
               </section>
             </Reveal>
 
+            {/* ---------- 그 사람의 burn projects ---------- */}
+            {viewing !== null &&
+              projects.filter((p) => p.participant === viewing).length > 0 && (
+                <Reveal>
+                  <section className="mt-10 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                    <SectionTitle>🔥 {viewing} · 태워서 만든 것들</SectionTitle>
+                    <ProjectGrid
+                      items={projects.filter((p) => p.participant === viewing)}
+                    />
+                    <p className="mt-3 text-[10px] text-neutral-600">
+                      // 전체 작품은 상단 🔥 작품 탭에서
+                    </p>
+                  </section>
+                </Reveal>
+              )}
+              </>
+            )}
+
             {/* ---------- join guide ---------- */}
             <Reveal>
               <section id="join" className="mt-12 scroll-mt-6 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
@@ -1658,13 +1701,15 @@ node /tmp/tokenholic-agent.mjs install <참가자키>`}
             </Reveal>
 
             {/* ---------- caveats ---------- */}
-            <Reveal>
-              <footer className="mt-4 rounded-xl border border-neutral-900 p-5 text-[10px] leading-relaxed text-neutral-600">
-                <p>// 금액은 구독 사용량을 API 정가로 환산한 추정치 (단가 미공개 모델 포함 시 부분 합계)</p>
-                <p>// grok-4.7-build 수치는 실제보다 약 8% 낮게 집계</p>
-                <p>// 데이터 {snapshot.firstDay}~ — 초기 구간은 듬성할 수 있음 · 세션/기기 정보 미포함</p>
-              </footer>
-            </Reveal>
+            {snapshot && (
+              <Reveal>
+                <footer className="mt-4 rounded-xl border border-neutral-900 p-5 text-[10px] leading-relaxed text-neutral-600">
+                  <p>// 금액은 구독 사용량을 API 정가로 환산한 추정치 (단가 미공개 모델 포함 시 부분 합계)</p>
+                  <p>// grok-4.7-build 수치는 실제보다 약 8% 낮게 집계</p>
+                  <p>// 데이터 {snapshot.firstDay}~ — 초기 구간은 듬성할 수 있음 · 세션/기기 정보 미포함</p>
+                </footer>
+              </Reveal>
+            )}
           </>
         )}
       </main>
