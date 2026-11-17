@@ -10,8 +10,10 @@ import {
   calendarWeeks,
   fmtTokens,
   fmtUsd,
+  rankParticipants,
   type DailyReport,
-  type RankedParticipant,
+  type LeaguePeriod,
+  type ParticipantSummary,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { CountUp, GrowBar, Reveal, useInView } from "@/components/ScrollFX";
@@ -835,7 +837,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function UsagePage() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [report, setReport] = useState<DailyReport | null>(null);
-  const [league, setLeague] = useState<RankedParticipant[]>([]);
+  const [league, setLeague] = useState<ParticipantSummary[]>([]);
+  const [viewing, setViewing] = useState<string>("dave");
+  const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("month");
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">(
     "loading",
   );
@@ -843,6 +847,37 @@ export default function UsagePage() {
   const [gran, setGran] = useState<Granularity>("day");
   const [period, setPeriod] = useState<Period>("m1");
   const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  const rankedLeague = useMemo(
+    () => rankParticipants(league, leaguePeriod),
+    [league, leaguePeriod],
+  );
+
+  /** 랭킹 행 클릭 → 그 참가자의 보드로 전환 (모든 차트가 그 사람 데이터로). */
+  const selectParticipant = useCallback(async (name: string) => {
+    try {
+      const r = await fetch(
+        `/api/usage${name === "dave" ? "" : `?participant=${encodeURIComponent(name)}`}`,
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = (await r.json()) as {
+        snapshot: UsageSnapshot | null;
+        report?: DailyReport | null;
+        viewing?: string | null;
+        league?: ParticipantSummary[];
+      };
+      setLeague(d.league ?? league);
+      if (d.snapshot) {
+        setSnapshot(d.snapshot);
+        setReport(d.report ?? null);
+        setViewing(d.viewing ?? name);
+        setState("ready");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } catch {
+      // 전환 실패 — 현재 보드 유지
+    }
+  }, [league]);
 
   // 운영자 세션이 살아 있으면 대기 신청 수를 상단 배지에 띄운다.
   // JoinPanel 승인/거절 이벤트 + 15초 폴링(탭이 보일 때만) + 포커스 시 갱신 —
@@ -889,12 +924,14 @@ export default function UsagePage() {
         return (await r.json()) as {
           snapshot: UsageSnapshot | null;
           report?: DailyReport | null;
-          league?: RankedParticipant[];
+          viewing?: string | null;
+          league?: ParticipantSummary[];
         };
       })
       .then((data) => {
         if (cancelled) return;
         setLeague(data.league ?? []);
+        setViewing(data.viewing ?? "dave");
         if (data.snapshot) {
           setSnapshot(data.snapshot);
           setReport(data.report ?? null);
@@ -1032,6 +1069,23 @@ export default function UsagePage() {
           </div>
         </header>
 
+        {/* 타 참가자 보드를 보는 중 — 내 보드로 돌아가기 */}
+        {state === "ready" && viewing !== "dave" && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/40 bg-white/[0.06] px-4 py-3">
+            <p className="text-xs font-bold text-white">
+              👤 <b className="text-sm">{viewing}</b>의 보드를 보고 있어요 — 아래
+              차트는 이 사람의 데이터
+            </p>
+            <button
+              type="button"
+              onClick={() => selectParticipant("dave")}
+              className="rounded-full bg-white px-4 py-1.5 text-[11px] font-bold text-black transition hover:opacity-80 cursor-pointer"
+            >
+              ← 내 보드로
+            </button>
+          </div>
+        )}
+
         {state === "loading" && (
           <p className="mt-12 text-center text-sm text-neutral-600">
             $ loading<span className="animate-cursor">▊</span>
@@ -1147,44 +1201,91 @@ export default function UsagePage() {
             {league.length > 1 && (
               <Reveal>
                 <section className="mt-4 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
-                    $ rank --period=30d --sort=usd
-                  </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                      $ rank --sort=usd
+                    </p>
+                    <div className="flex gap-1 rounded-full border border-neutral-800 p-1">
+                      {([
+                        { key: "day", label: "일간" },
+                        { key: "week", label: "주간" },
+                        { key: "month", label: "월간" },
+                      ] as const).map((g) => (
+                        <button
+                          key={g.key}
+                          type="button"
+                          onClick={() => setLeaguePeriod(g.key)}
+                          className={`rounded-full px-3 py-1 text-[11px] font-bold transition cursor-pointer ${
+                            leaguePeriod === g.key
+                              ? "bg-white text-black"
+                              : "text-neutral-500 hover:text-white"
+                          }`}
+                        >
+                          {g.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="mt-4 space-y-2">
-                    {league.map((p) => (
-                      <div
-                        key={p.name}
-                        className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border px-4 py-3 ${
-                          p.rank === 1
-                            ? "border-white/60 bg-white/[0.06]"
-                            : "border-neutral-800 bg-black/40"
-                        }`}
-                      >
-                        <p className="text-base font-bold text-white">
-                          <span className="mr-3 text-neutral-500">
-                            #{p.rank}
-                          </span>
-                          {p.name}
-                          {p.delta7dPct !== null && (
-                            <span className="ml-2 text-xs font-bold text-neutral-500">
-                              {p.delta7dPct >= 0 ? "▲" : "▼"}{" "}
-                              {Math.abs(p.delta7dPct).toFixed(0)}%
+                    {rankedLeague.map((p) => {
+                      const usd =
+                        leaguePeriod === "day"
+                          ? p.dayUsd
+                          : leaguePeriod === "week"
+                            ? p.usd7d
+                            : p.usd30d;
+                      const tks =
+                        leaguePeriod === "day"
+                          ? p.dayTokens
+                          : leaguePeriod === "week"
+                            ? p.tokens7d
+                            : p.tokens30d;
+                      const dateLabel =
+                        leaguePeriod === "day" ? p.lastCompleteDay : p.lastDay;
+                      return (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => selectParticipant(p.name)}
+                          className={`flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border px-4 py-3 text-left transition cursor-pointer ${
+                            p.name === viewing
+                              ? "border-white bg-white/[0.08]"
+                              : p.rank === 1
+                                ? "border-white/60 bg-white/[0.06] hover:border-white"
+                                : "border-neutral-800 bg-black/40 hover:border-neutral-500"
+                          }`}
+                        >
+                          <span className="text-base font-bold text-white">
+                            <span className="mr-3 text-neutral-500">
+                              #{p.rank}
                             </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-neutral-400">
-                          <b className="text-white">{fmtUsd(p.usd30d)}</b>
-                          <span className="mx-2 text-neutral-700">·</span>
-                          {fmtTokens(p.tokens30d)} tk
-                          <span className="mx-2 text-neutral-700">·</span>
-                          <span className="text-neutral-600">{p.lastDay}</span>
-                        </p>
-                      </div>
-                    ))}
+                            {p.name}
+                            {leaguePeriod !== "day" && p.delta7dPct !== null && (
+                              <span className="ml-2 text-xs font-bold text-neutral-500">
+                                {p.delta7dPct >= 0 ? "▲" : "▼"}{" "}
+                                {Math.abs(p.delta7dPct).toFixed(0)}%
+                              </span>
+                            )}
+                            {p.name === viewing && (
+                              <span className="ml-2 text-[10px] font-bold text-neutral-500">
+                                보는 중
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-sm text-neutral-400">
+                            <b className="text-white">{fmtUsd(usd)}</b>
+                            <span className="mx-2 text-neutral-700">·</span>
+                            {fmtTokens(tks)} tk
+                            <span className="mx-2 text-neutral-700">·</span>
+                            <span className="text-neutral-600">{dateLabel}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <p className="mt-3 text-[10px] text-neutral-600">
-                    공정 축은 환산 비용($) — 캐시·집계 편차 때문에 원시 토큰은
-                    참고용
+                    행을 클릭하면 그 사람의 보드로 전환 · 공정 축은 환산 비용($)
+                    — 캐시·집계 편차 때문에 원시 토큰은 참고용
                   </p>
                 </section>
               </Reveal>

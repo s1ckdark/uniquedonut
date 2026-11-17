@@ -1,9 +1,9 @@
 import {
   buildDailyReport,
-  rankParticipants,
   summarizeParticipant,
+  validateParticipantName,
   validateUsageSnapshot,
-  type RankedParticipant,
+  type ParticipantSummary,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { bearerOf, getDb, resolveParticipant } from "@/lib/usage-d1";
@@ -63,23 +63,36 @@ async function readLegacyBoard(db: Awaited<ReturnType<typeof getDb>>): Promise<S
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const db = await getDb();
     const boards = await readAllBoards(db);
-    let owner = boards.find((b) => b.participant === "dave") ?? null;
-    if (!owner) {
-      owner = await readLegacyBoard(db);
+    // 오너(dave) 보드: 신규 테이블에 없으면 레거시 1행에서 폴백 —
+    // 리그에는 누구의 보드를 보든 항상 포함된다.
+    let daveBoard = boards.find((b) => b.participant === "dave") ?? null;
+    if (!daveBoard) {
+      daveBoard = await readLegacyBoard(db);
     }
-    const leagueBoards = owner && !boards.some((b) => b.participant === "dave")
-      ? [...boards, owner]
-      : boards;
-    const league: RankedParticipant[] = rankParticipants(
-      leagueBoards.map((b) => summarizeParticipant(b.participant, b.snapshot)),
+    // 랭킹 클릭 등으로 다른 참가자의 보드를 볼 때: ?participant=이름
+    // (요약은 집계 수치뿐이라 공개해도 안전 — 리그 지수와 같은 데이터)
+    const wanted = validateParticipantName(
+      new URL(request.url).searchParams.get("participant"),
+    );
+    const owner =
+      (wanted && wanted !== "dave"
+        ? boards.find((b) => b.participant === wanted) ?? null
+        : null) ?? daveBoard;
+    const leagueBoards =
+      daveBoard && !boards.some((b) => b.participant === "dave")
+        ? [...boards, daveBoard]
+        : boards;
+    const league: ParticipantSummary[] = leagueBoards.map((b) =>
+      summarizeParticipant(b.participant, b.snapshot),
     );
     return Response.json({
       snapshot: owner?.snapshot ?? null,
       report: owner ? buildDailyReport(owner.snapshot) : null,
+      viewing: owner?.participant ?? null,
       league,
       storedAt: owner?.storedAt ?? null,
     });

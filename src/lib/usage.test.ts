@@ -17,6 +17,7 @@ import {
   aggregateByWeek,
   aggregateByMonth,
   buildDailyReport,
+  type ParticipantSummary,
   type UsageSnapshot,
 } from "./usage";
 
@@ -362,18 +363,63 @@ test("summarizeParticipant: 30d window anchored at lastDay, 7d delta", () => {
 });
 
 test("rankParticipants: usd30d desc, tie-break tokens30d desc", () => {
+  const mk = (name: string, tokens30d: number, usd30d: number): ParticipantSummary => ({
+    name, lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0,
+    tokens30d, usd30d, tokens7d: 0, usd7d: 0,
+    lastCompleteDay: "", dayTokens: 0, dayUsd: null, delta7dPct: null,
+  });
+  const ranked = rankParticipants([mk("a", 100, 5), mk("b", 300, 9), mk("c", 200, 9)]);
+  assert.deepEqual(ranked.map((r) => r.name), ["b", "c", "a"]);
+  assert.deepEqual(ranked.map((r) => r.rank), [1, 2, 3]);
+});
+
+test("rankParticipants: period axes (day / week / month)", () => {
+  const mk = (over: Partial<ParticipantSummary> & { name: string }): ParticipantSummary => ({
+    lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0,
+    tokens30d: 0, usd30d: 0, tokens7d: 0, usd7d: 0,
+    lastCompleteDay: "", dayTokens: 0, dayUsd: null, delta7dPct: null,
+    ...over,
+  });
   const rows = [
-    { name: "a", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 100, usd30d: 5, tokens7d: 0, delta7dPct: null },
-    { name: "b", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 300, usd30d: 9, tokens7d: 0, delta7dPct: null },
-    { name: "c", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0, tokens30d: 200, usd30d: 9, tokens7d: 0, delta7dPct: null },
+    mk({ name: "month-king", usd30d: 90, usd7d: 5, dayUsd: 1 }),
+    mk({ name: "week-king", usd30d: 10, usd7d: 50, dayUsd: 2 }),
+    mk({ name: "day-king", usd30d: 20, usd7d: 7, dayUsd: 30 }),
   ];
-  const ranked = rankParticipants(rows);
   assert.deepEqual(
-    ranked.map((r) => r.name),
-    ["b", "c", "a"],
+    rankParticipants(rows, "month").map((r) => r.name),
+    ["month-king", "day-king", "week-king"],
   );
   assert.deepEqual(
-    ranked.map((r) => r.rank),
-    [1, 2, 3],
+    rankParticipants(rows, "week").map((r) => r.name),
+    ["week-king", "day-king", "month-king"],
   );
+  assert.deepEqual(
+    rankParticipants(rows, "day").map((r) => r.name),
+    ["day-king", "week-king", "month-king"],
+  );
+});
+
+test("summarizeParticipant: usd7d and last-complete-day axes", () => {
+  const mk = (day: string, tokens: number, usd = tokens * 0.01) => ({
+    day, tokens, usd, costComplete: true,
+  });
+  // syncedAt 11-13 자정 → 11-13은 0토큰 "오늘", 마지막 완결일은 11-12
+  const daily = [
+    mk("2026-11-05", 100),
+    mk("2026-11-10", 200),
+    mk("2026-11-11", 300),
+    mk("2026-11-12", 400),
+    mk("2026-11-13", 0),
+  ];
+  const s = summarizeParticipant("dave", {
+    ...BASE,
+    syncedAt: "2026-11-13T00:00:45+09:00",
+    daily,
+  });
+  assert.equal(s.lastCompleteDay, "2026-11-12");
+  assert.equal(s.dayTokens, 400);
+  assert.equal(s.dayUsd, 4);
+  // 최근 7일(11-07~11-13): 200+300+400+0 = 900 tk, usd 9
+  assert.equal(s.tokens7d, 900);
+  assert.ok(Math.abs(s.usd7d - 9) < 1e-9);
 });

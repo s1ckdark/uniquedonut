@@ -363,6 +363,11 @@ export interface ParticipantSummary {
   usd30d: number;
   /** 최근 7일 (완결일 무관, daily 최대일 기준) */
   tokens7d: number;
+  usd7d: number;
+  /** 마지막 완결일(syncDay 이전 마지막 날) — 일간 랭킹 축 */
+  lastCompleteDay: string;
+  dayTokens: number;
+  dayUsd: number | null;
   /** 최근 7일 vs 직전 7일 증감(%) — 직전 7일에 데이터가 없으면 null */
   delta7dPct: number | null;
 }
@@ -399,6 +404,11 @@ export function summarizeParticipant(
   const prevTokens = sum(prev7, (p) => p.tokens);
   const delta7dPct = prevTokens > 0 ? ((tokens7d - prevTokens) / prevTokens) * 100 : null;
 
+  // 마지막 완결일: 자정 적재라 daily 최대일이 "오늘(0토큰)"일 수 있어 전날 기준
+  const syncDay = snapshot.syncedAt.slice(0, 10);
+  const complete = sorted.filter((p) => p.day < syncDay);
+  const lastComplete = complete.length > 0 ? complete[complete.length - 1] : sorted[sorted.length - 1];
+
   return {
     name,
     lastSync: snapshot.syncedAt,
@@ -408,6 +418,10 @@ export function summarizeParticipant(
     tokens30d: sum(win30, (p) => p.tokens),
     usd30d: Math.round(sum(win30, (p) => p.usd ?? 0) * 100) / 100,
     tokens7d,
+    usd7d: Math.round(sum(last7, (p) => p.usd ?? 0) * 100) / 100,
+    lastCompleteDay: lastComplete ? lastComplete.day : lastDay,
+    dayTokens: lastComplete ? lastComplete.tokens : 0,
+    dayUsd: lastComplete ? lastComplete.usd : null,
     delta7dPct,
   };
 }
@@ -416,13 +430,25 @@ export interface RankedParticipant extends ParticipantSummary {
   rank: number;
 }
 
-/** 랭킹: usd30d 내림차순, 동점이면 tokens30d 내림차순. */
+export type LeaguePeriod = "day" | "week" | "month";
+
+/** 랭킹: 선택 기간의 usd 내림차순, 동점이면 같은 기간 tokens 내림차순. */
 export function rankParticipants(
   rows: ParticipantSummary[],
+  period: LeaguePeriod = "month",
 ): RankedParticipant[] {
-  const sorted = [...rows].sort(
-    (a, b) => b.usd30d - a.usd30d || b.tokens30d - a.tokens30d,
-  );
+  const axis: Record<LeaguePeriod, [keyof ParticipantSummary, keyof ParticipantSummary]> = {
+    day: ["dayUsd", "dayTokens"],
+    week: ["usd7d", "tokens7d"],
+    month: ["usd30d", "tokens30d"],
+  };
+  const [usdKey, tokenKey] = axis[period];
+  const sorted = [...rows].sort((a, b) => {
+    const au = Number(a[usdKey] ?? 0);
+    const bu = Number(b[usdKey] ?? 0);
+    if (bu !== au) return bu - au;
+    return Number(b[tokenKey]) - Number(a[tokenKey]);
+  });
   return sorted.map((row, i) => ({ ...row, rank: i + 1 }));
 }
 
