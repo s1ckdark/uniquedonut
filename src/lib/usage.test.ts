@@ -8,7 +8,8 @@ import {
   validateProjectText,
   validateLink,
   summarizeParticipant,
-  rankParticipants,
+  computeLeagueMetrics,
+  rankLeague,
   fmtTokens,
   fmtUsd,
   providerColor,
@@ -362,41 +363,74 @@ test("summarizeParticipant: 30d window anchored at lastDay, 7d delta", () => {
   assert.equal(s.tokens7d, 3300);
 });
 
-test("rankParticipants: usd30d desc, tie-break tokens30d desc", () => {
-  const mk = (name: string, tokens30d: number, usd30d: number): ParticipantSummary => ({
-    name, lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0,
-    tokens30d, usd30d, tokens7d: 0, usd7d: 0,
-    lastCompleteDay: "", dayTokens: 0, dayUsd: null, delta7dPct: null,
+const SUM_BASE: ParticipantSummary = {
+  name: "x", lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0,
+  tokens30d: 0, usd30d: 0, tokens7d: 0, usd7d: 0,
+  lastCompleteDay: "", dayTokens: 0, dayUsd: null, delta7dPct: null,
+};
+
+test("computeLeagueMetrics: common anchor day + fixed week window + months", () => {
+  const mkDay = (day: string, tokens: number, usd = tokens * 0.01) => ({
+    day, tokens, usd, costComplete: true,
   });
-  const ranked = rankParticipants([mk("a", 100, 5), mk("b", 300, 9), mk("c", 200, 9)]);
-  assert.deepEqual(ranked.map((r) => r.name), ["b", "c", "a"]);
-  assert.deepEqual(ranked.map((r) => r.rank), [1, 2, 3]);
+  // dave: 마지막 완결일 11-16 / 지예: 마지막 완결일 11-13 → 앵커는 11-16
+  const daveSnap: UsageSnapshot = {
+    ...BASE,
+    syncedAt: "2026-11-17T00:00:40+09:00",
+    daily: [mkDay("2026-11-10", 100), mkDay("2026-11-15", 200), mkDay("2026-11-16", 300), mkDay("2026-11-17", 0)],
+  };
+  const jySnap: UsageSnapshot = {
+    ...BASE,
+    syncedAt: "2026-11-14T00:00:40+09:00",
+    daily: [mkDay("2026-10-31", 500), mkDay("2026-11-12", 10), mkDay("2026-11-13", 20), mkDay("2026-11-14", 0)],
+  };
+  const { anchorDay, metrics } = computeLeagueMetrics([
+    { name: "dave", snapshot: daveSnap },
+    { name: "지예", snapshot: jySnap },
+  ]);
+  assert.equal(anchorDay, "2026-11-16");
+  const dave = metrics.get("dave")!;
+  const jy = metrics.get("지예")!;
+  // 같은 날 비교: dave 300/지예 0 (지예는 11-16 데이터 없음)
+  assert.equal(dave.day.date, "2026-11-16");
+  assert.equal(dave.day.tokens, 300);
+  assert.equal(jy.day.tokens, 0);
+  assert.equal(jy.day.usd, null);
+  // 고정 7일 창 11-10~11-16 (같은 기간)
+  assert.equal(dave.week.from, "2026-11-10");
+  assert.equal(dave.week.to, "2026-11-16");
+  assert.equal(dave.week.tokens, 600);
+  assert.equal(jy.week.from, "2026-11-10"); // 지예도 같은 창
+  assert.equal(jy.week.tokens, 30); // 11-12+11-13만 창 안
+  // 월별 집계
+  assert.deepEqual(
+    jy.months.map((m) => m.month),
+    ["2026-10", "2026-11"],
+  );
+  assert.equal(jy.months[1].tokens, 30);
 });
 
-test("rankParticipants: period axes (day / week / month)", () => {
-  const mk = (over: Partial<ParticipantSummary> & { name: string }): ParticipantSummary => ({
-    lastSync: "", lastDay: "", totalTokens: 0, totalUsd: 0,
-    tokens30d: 0, usd30d: 0, tokens7d: 0, usd7d: 0,
-    lastCompleteDay: "", dayTokens: 0, dayUsd: null, delta7dPct: null,
+test("rankLeague: same-day/same-window/same-month comparison", () => {
+  const entry = (name: string, over: object) => ({
+    ...SUM_BASE,
+    name,
+    day: { date: "2026-11-16", tokens: 0, usd: null },
+    week: { from: "2026-11-10", to: "2026-11-16", tokens: 0, usd: 0 },
+    months: [],
     ...over,
   });
-  const rows = [
-    mk({ name: "month-king", usd30d: 90, usd7d: 5, dayUsd: 1 }),
-    mk({ name: "week-king", usd30d: 10, usd7d: 50, dayUsd: 2 }),
-    mk({ name: "day-king", usd30d: 20, usd7d: 7, dayUsd: 30 }),
+  const entries = [
+    entry("day-king", { day: { date: "x", tokens: 1, usd: 30 } }),
+    entry("week-king", { week: { from: "x", to: "x", tokens: 1, usd: 50 } }),
+    entry("month-king", { months: [{ month: "2026-10", tokens: 1, usd: 90 }, { month: "2026-11", tokens: 1, usd: 1 }] }),
   ];
-  assert.deepEqual(
-    rankParticipants(rows, "month").map((r) => r.name),
-    ["month-king", "day-king", "week-king"],
-  );
-  assert.deepEqual(
-    rankParticipants(rows, "week").map((r) => r.name),
-    ["week-king", "day-king", "month-king"],
-  );
-  assert.deepEqual(
-    rankParticipants(rows, "day").map((r) => r.name),
-    ["day-king", "week-king", "month-king"],
-  );
+  assert.deepEqual(rankLeague(entries, "day", "2026-11").map((r) => r.name), ["day-king", "week-king", "month-king"]);
+  assert.deepEqual(rankLeague(entries, "week", "2026-11").map((r) => r.name), ["week-king", "day-king", "month-king"]);
+  // 월 셀렉터: 10월을 고르면 month-king, 11월이면 usd 1 vs 0/0
+  assert.deepEqual(rankLeague(entries, "month", "2026-10").map((r) => r.name)[0], "month-king");
+  assert.deepEqual(rankLeague(entries, "month", "2026-11").map((r) => r.name)[0], "month-king");
+  // 데이터 없는 달 → 전부 0, 동점은 tokens로
+  assert.equal(rankLeague(entries, "month", "2025-01").length, 3);
 });
 
 test("summarizeParticipant: usd7d and last-complete-day axes", () => {

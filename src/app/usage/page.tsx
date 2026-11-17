@@ -10,10 +10,10 @@ import {
   calendarWeeks,
   fmtTokens,
   fmtUsd,
-  rankParticipants,
+  rankLeague,
   type DailyReport,
+  type LeagueEntry,
   type LeaguePeriod,
-  type ParticipantSummary,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { CountUp, GrowBar, Reveal, useInView } from "@/components/ScrollFX";
@@ -838,9 +838,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function UsagePage() {
   const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null);
   const [report, setReport] = useState<DailyReport | null>(null);
-  const [league, setLeague] = useState<ParticipantSummary[]>([]);
+  const [league, setLeague] = useState<LeagueEntry[]>([]);
   const [viewing, setViewing] = useState<string | null>("dave");
   const [leaguePeriod, setLeaguePeriod] = useState<LeaguePeriod>("month");
+  const [anchorDay, setAnchorDay] = useState<string>("");
+  const [leagueMonth, setLeagueMonth] = useState<string>(() => {
+    // 현재(KST) 월을 기본 선택 — 현재 날짜를 포함한 달
+    return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+  });
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">(
     "loading",
   );
@@ -866,12 +871,19 @@ export default function UsagePage() {
     void loadProjects();
   }, [loadProjects]);
 
+  // 월 옵션: 모든 참가자 월의 합집합(내림차순) + 현재 월 보장
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>([leagueMonth]);
+    for (const e of league) for (const m of e.months) set.add(m.month);
+    return [...set].sort((a, b) => b.localeCompare(a));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [league]);
+
   const rankedLeague = useMemo(
-    () => rankParticipants(league, leaguePeriod),
-    [league, leaguePeriod],
+    () => rankLeague(league, leaguePeriod, leagueMonth),
+    [league, leaguePeriod, leagueMonth],
   );
 
-  /** 랭킹 행 클릭 → 그 참가자의 보드로 전환 (모든 차트가 그 사람 데이터로). */
   /** 랭킹 행 클릭 → 그 참가자의 상세 보드로 (차트+작품이 그 사람 데이터로). */
   const selectParticipant = useCallback(async (name: string) => {
     try {
@@ -883,9 +895,11 @@ export default function UsagePage() {
         snapshot: UsageSnapshot | null;
         report?: DailyReport | null;
         viewing?: string | null;
-        league?: ParticipantSummary[];
+        anchorDay?: string;
+        league?: LeagueEntry[];
       };
       setLeague(d.league ?? league);
+      if (d.anchorDay) setAnchorDay(d.anchorDay);
       if (d.snapshot) {
         setSnapshot(d.snapshot);
         setReport(d.report ?? null);
@@ -950,12 +964,14 @@ export default function UsagePage() {
           snapshot: UsageSnapshot | null;
           report?: DailyReport | null;
           viewing?: string | null;
-          league?: ParticipantSummary[];
+          anchorDay?: string;
+          league?: LeagueEntry[];
         };
       })
       .then((data) => {
         if (cancelled) return;
         setLeague(data.league ?? []);
+        if (data.anchorDay) setAnchorDay(data.anchorDay);
         // 참가자가 2명 이상이면 개요(리그)부터 보여주고, 혼자면 곧바로 상세
         setViewing(
           (data.league ?? []).length > 1 ? null : (data.viewing ?? "dave"),
@@ -1187,43 +1203,70 @@ export default function UsagePage() {
                     <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-600">
                       $ rank --sort=usd
                     </p>
-                    <div className="flex gap-1 rounded-full border border-neutral-800 p-1">
-                      {([
-                        { key: "day", label: "일간" },
-                        { key: "week", label: "주간" },
-                        { key: "month", label: "월간" },
-                      ] as const).map((g) => (
-                        <button
-                          key={g.key}
-                          type="button"
-                          onClick={() => setLeaguePeriod(g.key)}
-                          className={`rounded-full px-3 py-1 text-[11px] font-bold transition cursor-pointer ${
-                            leaguePeriod === g.key
-                              ? "bg-white text-black"
-                              : "text-neutral-500 hover:text-white"
-                          }`}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {leaguePeriod === "month" && (
+                        <select
+                          value={leagueMonth}
+                          onChange={(e) => setLeagueMonth(e.target.value)}
+                          className="rounded-full border border-neutral-700 bg-black/60 px-3 py-1 text-[11px] font-bold text-white outline-none focus:border-neutral-400 cursor-pointer"
+                          aria-label="랭킹 월 선택"
                         >
-                          {g.label}
-                        </button>
-                      ))}
+                          {monthOptions.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <div className="flex gap-1 rounded-full border border-neutral-800 p-1">
+                        {([
+                          { key: "day", label: "일간" },
+                          { key: "week", label: "주간" },
+                          { key: "month", label: "월간" },
+                        ] as const).map((g) => (
+                          <button
+                            key={g.key}
+                            type="button"
+                            onClick={() => setLeaguePeriod(g.key)}
+                            className={`rounded-full px-3 py-1 text-[11px] font-bold transition cursor-pointer ${
+                              leaguePeriod === g.key
+                                ? "bg-white text-black"
+                                : "text-neutral-500 hover:text-white"
+                            }`}
+                          >
+                            {g.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-4 space-y-2">
+                  <p className="mt-2 text-[10px] text-neutral-600">
+                    {leaguePeriod === "day" &&
+                      `// 모두 같은 날 비교 — 기준일 ${anchorDay || "…"}`}
+                    {leaguePeriod === "week" &&
+                      league.length > 0 &&
+                      `// 모두 같은 기간 비교 — ${league[0].week.from} ~ ${league[0].week.to}`}
+                    {leaguePeriod === "month" &&
+                      `// 달력 월별 비교 — ${leagueMonth} (진행 중인 달 포함)`}
+                  </p>
+                  <div className="mt-3 space-y-2">
                     {rankedLeague.map((p) => {
+                      const monthAgg =
+                        leaguePeriod === "month"
+                          ? p.months.find((m) => m.month === leagueMonth)
+                          : undefined;
                       const usd =
                         leaguePeriod === "day"
-                          ? p.dayUsd
+                          ? p.day.usd
                           : leaguePeriod === "week"
-                            ? p.usd7d
-                            : p.usd30d;
+                            ? p.week.usd
+                            : (monthAgg?.usd ?? 0);
                       const tks =
                         leaguePeriod === "day"
-                          ? p.dayTokens
+                          ? p.day.tokens
                           : leaguePeriod === "week"
-                            ? p.tokens7d
-                            : p.tokens30d;
-                      const dateLabel =
-                        leaguePeriod === "day" ? p.lastCompleteDay : p.lastDay;
+                            ? p.week.tokens
+                            : (monthAgg?.tokens ?? 0);
                       return (
                         <button
                           key={p.name}
@@ -1232,9 +1275,7 @@ export default function UsagePage() {
                           className={`flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border px-4 py-3 text-left transition cursor-pointer ${
                             p.name === viewing
                               ? "border-white bg-white/[0.08]"
-                              : p.rank === 1
-                                ? "border-white/60 bg-white/[0.06] hover:border-white"
-                                : "border-neutral-800 bg-black/40 hover:border-neutral-500"
+                              : "border-neutral-800 bg-black/40 hover:border-neutral-500"
                           }`}
                         >
                           <span className="text-base font-bold text-white">
@@ -1242,7 +1283,7 @@ export default function UsagePage() {
                               #{p.rank}
                             </span>
                             {p.name}
-                            {leaguePeriod !== "day" && p.delta7dPct !== null && (
+                            {leaguePeriod === "week" && p.delta7dPct !== null && (
                               <span className="ml-2 text-xs font-bold text-neutral-500">
                                 {p.delta7dPct >= 0 ? "▲" : "▼"}{" "}
                                 {Math.abs(p.delta7dPct).toFixed(0)}%
@@ -1258,8 +1299,6 @@ export default function UsagePage() {
                             <b className="text-white">{fmtUsd(usd)}</b>
                             <span className="mx-2 text-neutral-700">·</span>
                             {fmtTokens(tks)} tk
-                            <span className="mx-2 text-neutral-700">·</span>
-                            <span className="text-neutral-600">{dateLabel}</span>
                           </span>
                         </button>
                       );

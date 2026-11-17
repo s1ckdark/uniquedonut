@@ -1,9 +1,10 @@
 import {
   buildDailyReport,
+  computeLeagueMetrics,
   summarizeParticipant,
   validateParticipantName,
   validateUsageSnapshot,
-  type ParticipantSummary,
+  type LeagueEntry,
   type UsageSnapshot,
 } from "@/lib/usage";
 import { bearerOf, getDb, resolveParticipant } from "@/lib/usage-d1";
@@ -86,13 +87,20 @@ export async function GET(request: Request) {
       daveBoard && !boards.some((b) => b.participant === "dave")
         ? [...boards, daveBoard]
         : boards;
-    const league: ParticipantSummary[] = leagueBoards.map((b) =>
-      summarizeParticipant(b.participant, b.snapshot),
+    // 공통 기준 리그 지표 — 같은 날/같은 7일 창/달력 월로 비교
+    const { anchorDay, metrics } = computeLeagueMetrics(
+      leagueBoards.map((b) => ({ name: b.participant, snapshot: b.snapshot })),
     );
+    const league: LeagueEntry[] = leagueBoards.flatMap((b) => {
+      const m = metrics.get(b.participant);
+      if (!m) return [];
+      return [{ ...summarizeParticipant(b.participant, b.snapshot), ...m }];
+    });
     return Response.json({
       snapshot: owner?.snapshot ?? null,
       report: owner ? buildDailyReport(owner.snapshot) : null,
       viewing: owner?.participant ?? null,
+      anchorDay,
       league,
       storedAt: owner?.storedAt ?? null,
     });

@@ -426,30 +426,120 @@ export function summarizeParticipant(
   };
 }
 
-export interface RankedParticipant extends ParticipantSummary {
-  rank: number;
-}
-
 export type LeaguePeriod = "day" | "week" | "month";
 
-/** 랭킹: 선택 기간의 usd 내림차순, 동점이면 같은 기간 tokens 내림차순. */
-export function rankParticipants(
-  rows: ParticipantSummary[],
-  period: LeaguePeriod = "month",
-): RankedParticipant[] {
-  const axis: Record<LeaguePeriod, [keyof ParticipantSummary, keyof ParticipantSummary]> = {
-    day: ["dayUsd", "dayTokens"],
-    week: ["usd7d", "tokens7d"],
-    month: ["usd30d", "tokens30d"],
-  };
-  const [usdKey, tokenKey] = axis[period];
-  const sorted = [...rows].sort((a, b) => {
-    const au = Number(a[usdKey] ?? 0);
-    const bu = Number(b[usdKey] ?? 0);
-    if (bu !== au) return bu - au;
-    return Number(b[tokenKey]) - Number(a[tokenKey]);
+// ---------- 공통 기준 리그 지표 (같은 날 / 같은 7일 / 달력 월) ----------
+
+export interface CommonDayMetric {
+  /** 모든 참가자가 함께 비교되는 기준일 (YYYY-MM-DD) */
+  date: string;
+  tokens: number;
+  usd: number | null;
+}
+
+export interface CommonWeekMetric {
+  from: string; // 기준일-6
+  to: string; // 기준일
+  tokens: number;
+  usd: number;
+}
+
+export interface MonthMetric {
+  month: string; // YYYY-MM
+  tokens: number;
+  usd: number;
+}
+
+export interface LeagueEntryMetrics {
+  day: CommonDayMetric;
+  week: CommonWeekMetric;
+  months: MonthMetric[]; // 데이터 있는 달 오름차순
+}
+
+/**
+ * 리그 공통 지표 — 앵커는 "모든 참가자의 마지막 완결일 중 최대"라
+ * 일간·주간이 모두 같은 날/기간으로 비교된다. 앵커 날 데이터가 없는
+ * 참가자는 0으로 들어간다(그날 안 태운/미보고 것도 공정 비교).
+ */
+export function computeLeagueMetrics(
+  boards: Array<{ name: string; snapshot: UsageSnapshot }>,
+): { anchorDay: string; metrics: Map<string, LeagueEntryMetrics> } {
+  const DAY_MS = 86_400_000;
+
+  // 1) 앵커 = 마지막 완결일(syncDay 이전 마지막 날)의 최대
+  let anchor = "";
+  const prepared = boards.map((b) => {
+    const sorted = [...b.snapshot.daily].sort((x, y) => x.day.localeCompare(y.day));
+    const syncDay = b.snapshot.syncedAt.slice(0, 10);
+    const complete = sorted.filter((p) => p.day < syncDay);
+    const last =
+      complete.length > 0
+        ? complete[complete.length - 1].day
+        : (sorted[sorted.length - 1]?.day ?? "");
+    if (last > anchor) anchor = last;
+    return { name: b.name, sorted };
   });
-  return sorted.map((row, i) => ({ ...row, rank: i + 1 }));
+
+  const from = new Date(
+    new Date(`${anchor || "1970-01-01"}T00:00:00Z`).getTime() - 6 * DAY_MS,
+  )
+    .toISOString()
+    .slice(0, 10);
+
+  // 2) 참가자별: 앵커 당일 / 고정 7일 창 / 월별 집계
+  const metrics = new Map<string, LeagueEntryMetrics>();
+  for (const { name, sorted } of prepared) {
+    const dayRow = sorted.find((p) => p.day === anchor);
+    const weekRows = sorted.filter((p) => p.day >= from && p.day <= anchor);
+    const byMonth = new Map<string, { tokens: number; usd: number }>();
+    for (const p of sorted) {
+      const m = p.day.slice(0, 7);
+      const agg = byMonth.get(m) ?? { tokens: 0, usd: 0 };
+      agg.tokens += p.tokens;
+      agg.usd += p.usd ?? 0;
+      byMonth.set(m, agg);
+    }
+    metrics.set(name, {
+      day: { date: anchor, tokens: dayRow?.tokens ?? 0, usd: dayRow?.usd ?? null },
+      week: {
+        from,
+        to: anchor,
+        tokens: weekRows.reduce((a, p) => a + p.tokens, 0),
+        usd:
+          Math.round(weekRows.reduce((a, p) => a + (p.usd ?? 0), 0) * 100) / 100,
+      },
+      months: [...byMonth.entries()]
+        .map(([month, v]) => ({
+          month,
+          tokens: v.tokens,
+          usd: Math.round(v.usd * 100) / 100,
+        }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
+    });
+  }
+  return { anchorDay: anchor, metrics };
+}
+
+export type LeagueEntry = ParticipantSummary & LeagueEntryMetrics;
+
+/** 기간별 리그 랭킹 — 모두 같은 날/같은 창/같은 달 기준, usd desc → tokens desc. */
+export function rankLeague(
+  entries: LeagueEntry[],
+  period: LeaguePeriod,
+  month: string,
+): Array<LeagueEntry & { rank: number }> {
+  const value = (e: LeagueEntry): [number, number] => {
+    if (period === "day") return [e.day.usd ?? 0, e.day.tokens];
+    if (period === "week") return [e.week.usd, e.week.tokens];
+    const m = e.months.find((x) => x.month === month);
+    return [m?.usd ?? 0, m?.tokens ?? 0];
+  };
+  const sorted = [...entries].sort((a, b) => {
+    const [au, at] = value(a);
+    const [bu, bt] = value(b);
+    return bu - au || bt - at;
+  });
+  return sorted.map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
 // ---------- daily report (자정 적재 시점 자동 작성) ----------
