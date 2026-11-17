@@ -4,6 +4,9 @@ import {
   validateUsageSnapshot,
   validateParticipantName,
   validateEmail,
+  validateProjectTitle,
+  validateProjectText,
+  validateLink,
   summarizeParticipant,
   rankParticipants,
   fmtTokens,
@@ -288,6 +291,36 @@ test("validateEmail: accepts sane addresses, rejects garbage", () => {
     assert.equal(validateEmail(bad), null);
   }
   assert.equal(validateEmail("  Trim@Example.COM "), "trim@example.com");
+});
+
+test("validateProjectTitle: 1-40 chars, no control chars", () => {
+  assert.equal(validateProjectTitle("TOKENHOLIC 대시보드 🔥"), "TOKENHOLIC 대시보드 🔥");
+  assert.equal(validateProjectTitle("  여러   공백  "), "여러 공백");
+  for (const bad of ["", "   ", "x".repeat(41), null, 7]) {
+    assert.equal(validateProjectTitle(bad), null);
+  }
+  // 탭은 공백으로 정규화되어 통과 (의도된 동작)
+  assert.equal(validateProjectTitle("탭\t포함"), "탭 포함");
+});
+
+test("validateProjectText: 0-200 chars for descriptions", () => {
+  assert.equal(validateProjectText(null, 200), null);
+  assert.equal(validateProjectText(undefined, 200), null);
+  assert.equal(validateProjectText("  ", 200), null);
+  assert.equal(validateProjectText("GPT로 만든 장기 인공지능", 200), "GPT로 만든 장기 인공지능");
+  assert.equal(validateProjectText("x".repeat(201), 200), null);
+  assert.equal(validateProjectText("줄바꿈\n포함", 200), null); // 제어문자
+});
+
+test("validateLink: http(s) URL with host, stored not fetched", () => {
+  assert.equal(validateLink("https://uniquedonut.com/usage"), "https://uniquedonut.com/usage");
+  assert.equal(validateLink("http://localhost:3000"), "http://localhost:3000");
+  assert.equal(validateLink(null), null);
+  assert.equal(validateLink(""), null);
+  assert.equal(validateLink("ftp://example.com"), null);
+  assert.equal(validateLink("그냥 텍스트"), null);
+  assert.equal(validateLink("https://"), null);
+  assert.equal(validateLink("x".repeat(301)), null);
 });
 
 test("validateParticipantName: 1-16 chars, hangul/latin/digit/space/-/_", () => {

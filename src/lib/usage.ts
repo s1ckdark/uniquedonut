@@ -306,6 +306,52 @@ export function validateEmail(input: unknown): string | null {
   return trimmed;
 }
 
+// ---------- burn projects (태워서 만든 작품 등록) ----------
+
+export interface BurnProjectInput {
+  title: string;
+  url: string | null;
+  repo: string | null;
+  description: string | null;
+}
+
+/** 프로젝트 제목: 1-40자, 제어문자 불가. */
+export function validateProjectTitle(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim().replace(/\s+/g, " ");
+  if (trimmed.length < 1 || trimmed.length > 40) return null;
+  // 제어 문자 제외 전부 허용 (한글·영문·기호·이모지)
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/** 설명: 0-200자. */
+export function validateProjectText(
+  input: unknown,
+  max: number,
+): string | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > max) return null;
+  if (/[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/** http(s) 링크: 프로토콜+호스트 필수(포트 허용), 길이 ≤300 — 저장만 하고 서버가 fetch하지는 않음. */
+export function validateLink(input: unknown): string | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 300) return null;
+  if (!/^https?:\/\/[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*(:\d+)?([/?#][^\s]*)?$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
 export interface ParticipantSummary {
   name: string;
   lastSync: string;

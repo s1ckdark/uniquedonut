@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   aggregateByHour,
   aggregateByMonth,
@@ -622,6 +622,204 @@ function JoinPanel() {
   );
 }
 
+/** 🔥 태워서 만든 것들 — 참가자 키로 등록하는 작품 갤러리. */
+interface ProjectRow {
+  id: number;
+  participant: string;
+  title: string;
+  url: string | null;
+  repo: string | null;
+  description: string | null;
+  created_at: string;
+}
+
+function BurnProjects() {
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [memberKey, setMemberKey] = useState("");
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [repo, setRepo] = useState("");
+  const [desc, setDesc] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/usage/projects");
+      if (!r.ok) return;
+      const d = (await r.json()) as { projects: ProjectRow[] };
+      setProjects(d.projects ?? []);
+    } catch {
+      // 조용히
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const saved = sessionStorage.getItem("tokenholic-member-key");
+    if (saved) setMemberKey(saved);
+  }, [load]);
+
+  async function register() {
+    if (!title.trim() || !memberKey.trim()) return;
+    setSending(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const r = await fetch("/api/usage/projects", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${memberKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          url: url || null,
+          repo: repo || null,
+          description: desc || null,
+        }),
+      });
+      const d = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) throw new Error(d.error ?? `HTTP ${r.status}`);
+      sessionStorage.setItem("tokenholic-member-key", memberKey.trim());
+      setMsg("등록 완료!");
+      setTitle("");
+      setUrl("");
+      setRepo("");
+      setDesc("");
+      await load();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const inputCls =
+    "rounded-lg border border-neutral-700 bg-black/60 px-3 py-2 text-xs text-white outline-none focus:border-neutral-400";
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-neutral-600">
+          {projects.length > 0
+            ? `${projects.length}개의 작품 — 태운 토큰의 증거`
+            : "// 첫 작품의 주인공이 되어보세요"}
+        </p>
+        <button
+          type="button"
+          onClick={() => setShowForm((s) => !s)}
+          className="rounded-full border border-neutral-700 px-3 py-1 text-[10px] font-bold text-neutral-400 transition hover:border-neutral-400 hover:text-white cursor-pointer"
+        >
+          {showForm ? "닫기" : "＋ 등록"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="mt-3 space-y-2 rounded-lg border border-neutral-800 bg-black/40 p-4">
+          <input
+            value={memberKey}
+            onChange={(e) => setMemberKey(e.target.value)}
+            type="password"
+            placeholder="참가자 키"
+            className={`${inputCls} w-full`}
+            aria-label="참가자 키"
+          />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value.slice(0, 40))}
+            placeholder="프로젝트 이름 (1-40자)"
+            className={`${inputCls} w-full`}
+            aria-label="프로젝트 이름"
+          />
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value.slice(0, 300))}
+              placeholder="https:// 서비스 링크 (선택)"
+              className={`${inputCls} min-w-0 flex-1`}
+              aria-label="프로젝트 링크"
+            />
+            <input
+              value={repo}
+              onChange={(e) => setRepo(e.target.value.slice(0, 300))}
+              placeholder="https:// 저장소 (선택)"
+              className={`${inputCls} min-w-0 flex-1`}
+              aria-label="프로젝트 저장소"
+            />
+          </div>
+          <textarea
+            value={desc}
+            onChange={(e) => setDesc(e.target.value.slice(0, 200))}
+            placeholder="한 줄 설명 (200자 이내, 어떤 토큰으로 만들었는지)"
+            rows={2}
+            className={`${inputCls} w-full resize-none`}
+            aria-label="프로젝트 설명"
+          />
+          <button
+            type="button"
+            onClick={register}
+            disabled={sending || !title.trim() || !memberKey.trim()}
+            className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black transition hover:opacity-80 disabled:opacity-40 cursor-pointer"
+          >
+            {sending ? "등록 중…" : "🚀 등록"}
+          </button>
+          {msg && <p className="text-[11px] text-white">{msg}</p>}
+          {err && <p className="text-[11px] text-red-400">{err}</p>}
+        </div>
+      )}
+
+      {projects.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {projects.map((p) => (
+            <div
+              key={p.id}
+              className="rounded-lg border border-neutral-800 bg-black/40 p-4 transition hover:border-neutral-500"
+            >
+              <p className="text-sm font-bold text-white">
+                {p.url ? (
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                  >
+                    {p.title} ↗
+                  </a>
+                ) : (
+                  p.title
+                )}
+              </p>
+              {p.description && (
+                <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
+                  {p.description}
+                </p>
+              )}
+              <p className="mt-2 flex items-center gap-2 text-[10px] text-neutral-600">
+                <span className="rounded-full border border-neutral-800 px-2 py-0.5 font-bold text-neutral-400">
+                  by {p.participant}
+                </span>
+                {p.repo && (
+                  <a
+                    href={p.repo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white"
+                  >
+                    repo ↗
+                  </a>
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2
@@ -991,6 +1189,14 @@ export default function UsagePage() {
                 </section>
               </Reveal>
             )}
+
+            {/* ---------- burn projects gallery ---------- */}
+            <Reveal>
+              <section className="mt-10 rounded-xl border border-neutral-800 bg-[#0D0D0D] p-6">
+                <SectionTitle>태워서 만든 것들 burn-projects</SectionTitle>
+                <BurnProjects />
+              </section>
+            </Reveal>
 
             {/* ---------- calendar heatmap ---------- */}
             <Reveal>

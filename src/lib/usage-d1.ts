@@ -45,6 +45,15 @@ const BOOTSTRAP_STATEMENTS = [
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     decided_at TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS usage_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    participant TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT,
+    repo TEXT,
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+  )`,
 ];
 
 export async function getDb(): Promise<D1Database> {
